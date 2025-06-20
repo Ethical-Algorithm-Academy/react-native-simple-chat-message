@@ -1,0 +1,11 @@
+deeplink redirect urls - simplechatapp://login
+oauth - google oauth
+
+
+snack bar message 
+
+2 factor autentication
+
+password requirements
+
+app icon
