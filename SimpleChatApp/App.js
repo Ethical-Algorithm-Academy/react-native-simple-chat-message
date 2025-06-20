@@ -29,12 +29,21 @@ import { SnackbarProvider, useSnackbar } from "./contexts/SnackbarContext";
 import Snackbar from "./components/Snackbar";
 
 const Stack = createNativeStackNavigator();
+const EVENT_TYPES = {
+  INITIAL_SESSION: 'INITIAL_SESSION',
+  SIGNED_IN: 'SIGNED_IN',
+  SIGNED_OUT: 'SIGNED_OUT',
+  TOKEN_REFRESHED: 'TOKEN_REFRESHED',
+  USER_UPDATED: 'USER_UPDATED',
+};
+
 
 function AppContent() {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
   const [sessionType, setSessionType] = useState(null);
   const { snackbar, hideSnackbar } = useSnackbar();
+
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -43,29 +52,29 @@ function AppContent() {
         console.log('User:', session?.user?.email);
         
         switch (event) {
-          case 'INITIAL_SESSION':
+          case EVENT_TYPES.INITIAL_SESSION:
             console.log('Initial session:', session ? 'Found' : 'None');
             setSession(session);
             setLoading(false);
             break;
             
-          case 'SIGNED_IN':
+          case EVENT_TYPES.SIGNED_IN:
             console.log('User signed in successfully!');
             setSession(session);
             break;
             
-          case 'SIGNED_OUT':
+          case EVENT_TYPES.SIGNED_OUT:
             console.log('User signed out');
             setSession(null);
             setSessionType(null);
             break;
             
-          case 'TOKEN_REFRESHED':
+          case EVENT_TYPES.TOKEN_REFRESHED:
             console.log('Token refreshed');
             setSession(session);
             break;
             
-          case 'USER_UPDATED':
+          case EVENT_TYPES.USER_UPDATED:
             console.log('User updated');
             setSession(session);
             break;

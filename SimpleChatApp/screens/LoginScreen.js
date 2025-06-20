@@ -5,6 +5,7 @@ import { useNavigation } from "@react-navigation/native";
 import { supabase } from "../lib/supabase";
 import { signInWithGoogle } from '../lib/googleAuth';
 import { useSnackbar } from "../contexts/SnackbarContext";
+import Snackbar, { SNACKBAR_TYPES } from '../components/Snackbar';
 
 import {
   NAV_FORGOT_PASSWORD_SCREEN,

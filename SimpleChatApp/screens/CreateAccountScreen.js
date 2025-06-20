@@ -26,7 +26,7 @@ function CreateAccountScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleCreateAccount = async () => {
     if (!fullName || !email || !password || !confirmPassword) {
@@ -40,7 +40,7 @@ function CreateAccountScreen() {
     }
 
     try {
-      setLoading(true);
+      setIsLoading(true);
 
       const { data, error } = await supabase.auth.signUp({
         email: email,
@@ -58,13 +58,13 @@ function CreateAccountScreen() {
     } catch (error) {
       showError(error.message);
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
   const handleGoogleSignUp = async () => {
     try {
-      setLoading(true);
+      setIsLoading(true);
       const { data, error } = await signInWithGoogle();
       
       if (error) throw error;
@@ -73,7 +73,7 @@ function CreateAccountScreen() {
     } catch (error) {
       showError(error.message);
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
@@ -124,18 +124,18 @@ function CreateAccountScreen() {
 
       <PrimaryButton
         iconName="person-add-outline"
-        title={loading ? "Creating..." : "Create Account"}
+        title={isLoading ? "Creating..." : "Create Account"}
         onPress={handleCreateAccount}
-        loading={loading}
+        isLoading={isLoading}
       />
       
       <Divider text="OR CONTINUE WITH" />
       
       <SecondaryButton
         iconName="logo-google"
-        title={loading ? 'Creating account...' : 'Sign up with Google'}
+        title={isLoading ? 'Creating account...' : 'Sign up with Google'}
         onPress={handleGoogleSignUp}
-        loading={loading}
+        isLoading={isLoading}
       />
       
       <NavigationLink

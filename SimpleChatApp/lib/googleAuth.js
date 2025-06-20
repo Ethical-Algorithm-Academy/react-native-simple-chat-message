@@ -1,6 +1,7 @@
 import * as AuthSession from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
 import { supabase } from './supabase';
+import { DEEPLINK_MAIN_APP } from '../constants/navigation';
 
 // Complete the auth session
 WebBrowser.maybeCompleteAuthSession();
@@ -8,7 +9,7 @@ WebBrowser.maybeCompleteAuthSession();
 export const signInWithGoogle = async () => {
   try {
     // Try different redirect URL formats
-    const redirectUrl = 'simplechatapp://';
+    const redirectUrl = DEEPLINK_MAIN_APP;
     
     // Alternative: Use the development URL if needed
     // const redirectUrl = 'exp://192.168.100.15:8081/--/auth/callback';

@@ -3,7 +3,7 @@ import { useNavigation } from "@react-navigation/native";
 import { supabase } from "../lib/supabase";
 import { useSnackbar } from "../contexts/SnackbarContext";
 
-import { NAV_LOGIN_SCREEN } from "../constants/navigation";
+import { NAV_LOGIN_SCREEN, DEEPLINK_MAIN_APP } from "../constants/navigation";
 
 import ScreenContainer from "../components/ScreenContainer";
 import IconHeader from "../components/IconHeader";
@@ -31,7 +31,7 @@ function MagicLinkScreen() {
       const { error } = await supabase.auth.signInWithOtp({
         email: email,
         options: {
-          emailRedirectTo: "simplechatapp://",
+          emailRedirectTo: DEEPLINK_MAIN_APP,
         },
       });
 

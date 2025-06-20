@@ -3,7 +3,7 @@ import { useNavigation } from "@react-navigation/native";
 import { supabase } from '../lib/supabase';
 import { useSnackbar } from "../contexts/SnackbarContext";
 
-import { NAV_LOGIN_SCREEN } from "../constants/navigation";
+import { NAV_LOGIN_SCREEN, DEEPLINK_RESET_PASSWORD } from "../constants/navigation";
 
 import ScreenContainer from "../components/ScreenContainer";
 import IconHeader from "../components/IconHeader";
@@ -28,7 +28,7 @@ function ForgotPasswordScreen() {
     try {
       setLoading(true);
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: 'simplechatapp://reset-password',
+        redirectTo: DEEPLINK_RESET_PASSWORD,
       });
 
       if (error) throw error;
