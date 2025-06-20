@@ -5,7 +5,6 @@ import { useNavigation } from "@react-navigation/native";
 import { supabase } from "../lib/supabase";
 import { signInWithGoogle } from '../lib/googleAuth';
 import { useSnackbar } from "../contexts/SnackbarContext";
-import Snackbar, { SNACKBAR_TYPES } from '../components/Snackbar';
 
 import {
   NAV_FORGOT_PASSWORD_SCREEN,
@@ -25,7 +24,7 @@ import Divider from "../components/Divider";
 import NavigationLink from "../components/NavigationLink";
 
 
-function LoginScreen() {
+function LoginScreen({ onPendingMfa }) {
   const navigation = useNavigation();
   const { showSuccess, showError } = useSnackbar();
   const [showPassword, setShowPassword] = useState(false);
@@ -45,10 +44,22 @@ function LoginScreen() {
         email: email,
         password: password,
       });
-
+      console.log('LOGIN RESPONSE:', data, error);
       if (error) throw error;
 
-      showSuccess("Logged in successfully!");
+      // Handle MFA challenge
+      if (data?.mfa) {
+        // Call onPendingMfa to set pending MFA state in App.js
+        if (onPendingMfa) {
+          onPendingMfa({ ticket: data.mfa.ticket, factorId: data.mfa.factorId });
+        }
+        return;
+      }
+
+      // Only show success if session is established
+      if (data?.session) {
+        showSuccess("Logged in successfully!");
+      }
     } catch (error) {
       showError(error.message);
     } finally {
