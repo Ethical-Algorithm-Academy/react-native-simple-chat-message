@@ -1,4 +1,5 @@
 import { createContext, useContext, useState } from "react";
+import { SNACKBAR_TYPES } from '../components/Snackbar';
 
 const SnackbarContext = createContext();
 
@@ -14,11 +15,11 @@ export const SnackbarProvider = ({ children }) => {
   const [snackbar, setSnackbar] = useState({
     visible: false,
     message: "",
-    type: "info",
+    type: SNACKBAR_TYPES.INFO,
     duration: 3000,
   });
 
-  const showSnackbar = (message, type = "info", duration = 3000) => {
+  const showSnackbar = (message, type = SNACKBAR_TYPES.INFO, duration = 3000) => {
     setSnackbar({
       visible: true,
       message,
@@ -32,19 +33,19 @@ export const SnackbarProvider = ({ children }) => {
   };
 
   const showSuccess = (message, duration = 3000) => {
-    showSnackbar(message, "success", duration);
+    showSnackbar(message, SNACKBAR_TYPES.SUCCESS, duration);
   };
 
   const showError = (message, duration = 4000) => {
-    showSnackbar(message, "error", duration);
+    showSnackbar(message, SNACKBAR_TYPES.ERROR, duration);
   };
 
   const showWarning = (message, duration = 3000) => {
-    showSnackbar(message, "warning", duration);
+    showSnackbar(message, SNACKBAR_TYPES.WARNING, duration);
   };
 
   const showInfo = (message, duration = 3000) => {
-    showSnackbar(message, "info", duration);
+    showSnackbar(message, SNACKBAR_TYPES.INFO, duration);
   };
 
   return (

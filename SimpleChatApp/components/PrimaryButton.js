@@ -6,8 +6,8 @@ function PrimaryButton({
   iconName, 
   title, 
   onPress, 
-  loading = false, 
-  disabled = false,
+  isLoading = false, 
+  isDisabled = false,
   iconColor = "#fff",
   iconSize = 24,
   style = {}
@@ -16,11 +16,11 @@ function PrimaryButton({
     <Pressable
       style={[
         styles.button, 
-        (loading || disabled) && styles.disabledButton,
+        (isLoading || isDisabled) && styles.disabledButton,
         style
       ]}
       onPress={onPress}
-      disabled={loading || disabled}
+      disabled={isLoading || isDisabled}
     >
       <Ionicons 
         name={iconName} 

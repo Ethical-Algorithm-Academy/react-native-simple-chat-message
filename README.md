@@ -2,8 +2,9 @@
 This is a simple demo using Supabase and React Native;
 
 
-Redirect URLs added in supabase:
-simplechatapp://login
-simplechatapp://reset-password
-simplechatapp://auth/callback
-simplechatapp://
+### Redirect URLs added in Supabase
+Make sure the following redirect URLs are configured in your Supabase project:
+
+- `simplechatapp://login`
+- `simplechatapp://reset-password`
+- `simplechatapp://auth/callback`

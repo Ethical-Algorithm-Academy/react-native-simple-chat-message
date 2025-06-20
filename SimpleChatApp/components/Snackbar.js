@@ -3,10 +3,18 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { RFValue } from "react-native-responsive-fontsize";
 import { Ionicons } from "@expo/vector-icons";
 
+// Define the possible snackbar types as constants
+export const SNACKBAR_TYPES = {
+  SUCCESS: "success",
+  ERROR: "error",
+  WARNING: "warning",
+  INFO: "info",
+};
+
 function Snackbar({ 
   visible, 
   message, 
-  type = "info", // "success", "error", "warning", "info"
+  type = SNACKBAR_TYPES.INFO,
   duration = 3000,
   onDismiss 
 }) {
@@ -80,32 +88,24 @@ function Snackbar({
     };
   }, []);
 
-  const getTypeStyles = () => {
-    switch (type) {
-      case "success":
-        return {
-          backgroundColor: "#4CAF50",
-          icon: "checkmark-circle-outline",
-        };
-      case "error":
-        return {
-          backgroundColor: "#F44336",
-          icon: "close-circle-outline",
-        };
-      case "warning":
-        return {
-          backgroundColor: "#FF9800",
-          icon: "warning-outline",
-        };
-      default:
-        return {
-          backgroundColor: "#2196F3",
-          icon: "information-circle-outline",
-        };
-    }
+  const typeStyles = {
+    [SNACKBAR_TYPES.SUCCESS]: {
+      backgroundColor: "#4CAF50",
+      icon: "checkmark-circle-outline",
+    },
+    [SNACKBAR_TYPES.ERROR]: {
+      backgroundColor: "#F44336",
+      icon: "close-circle-outline",
+    },
+    [SNACKBAR_TYPES.WARNING]: {
+      backgroundColor: "#FF9800",
+      icon: "warning-outline",
+    },
+    [SNACKBAR_TYPES.INFO]: {
+      backgroundColor: "#2196F3",
+      icon: "information-circle-outline",
+    },
   };
-
-  const typeStyles = getTypeStyles();
 
   if (!isVisible) return null;
 
@@ -114,7 +114,7 @@ function Snackbar({
       style={[
         styles.container,
         {
-          backgroundColor: typeStyles.backgroundColor,
+          backgroundColor: typeStyles[type].backgroundColor,
           opacity: fadeAnim,
           transform: [{ translateY: slideAnim }],
         },
@@ -122,7 +122,7 @@ function Snackbar({
     >
       <View style={styles.content}>
         <Ionicons
-          name={typeStyles.icon}
+          name={typeStyles[type].icon}
           size={RFValue(20)}
           color="#fff"
           style={styles.icon}
