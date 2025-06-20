@@ -1,5 +1,4 @@
-import { useState } from "react";
-import { useNavigation } from "@react-navigation/native";
+import React, { useState } from "react";
 import { supabase } from "../lib/supabase";
 import { useSnackbar } from "../contexts/SnackbarContext";
 
@@ -7,59 +6,40 @@ import ScreenContainer from "../components/ScreenContainer";
 import IconHeader from "../components/IconHeader";
 import ScreenTitle from "../components/ScreenTitle";
 import FormLabel from "../components/FormLabel";
-import TextInput from "../components/TextInput";
 import PrimaryButton from "../components/PrimaryButton";
-import SecondaryButton from "../components/SecondaryButton";
+import TextInput from "../components/TextInput";
 
-function MFAVerificationScreen() {
-  const navigation = useNavigation();
-  const { showSuccess, showError } = useSnackbar();
-  const [verificationCode, setVerificationCode] = useState("");
+export default function MFAVerificationScreen({ challengeId, factorId, onVerified }) {
+  const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
+  const { showSnackbar } = useSnackbar();
 
-  const verifyMFA = async () => {
-    if (!verificationCode) {
-      showError("Please enter the verification code");
-      return;
-    }
-
+  const handleVerify = async () => {
+    setLoading(true);
     try {
-      setLoading(true);
-      
-      // This will be called after the user enters their MFA code
+      // Use challengeId and factorId to verify MFA
       const { data, error } = await supabase.auth.mfa.verify({
-        factorId: 'totp', // You'll need to get the actual factorId
-        code: verificationCode
+        factorId,
+        challengeId,
+        code,
       });
-
-      if (error) throw error;
-
-      showSuccess("MFA verification successful!");
-      // Navigate to main app or next screen
-      navigation.navigate('MainApp');
-      
-    } catch (error) {
-      showError(error.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const resendCode = async () => {
-    try {
-      setLoading(true);
-      
-      // Resend MFA challenge
-      const { data, error } = await supabase.auth.mfa.challenge({
-        factorId: 'totp' // You'll need to get the actual factorId
-      });
-
-      if (error) throw error;
-
-      showSuccess("New verification code sent!");
-      
-    } catch (error) {
-      showError(error.message);
+      if (error) {
+        showSnackbar("Invalid code. Please try again.", "error");
+      } else {
+        showSnackbar("MFA verified!", "success");
+        if (onVerified) {
+          if (data?.session) {
+            onVerified(data.session);
+            console.log("onverified session1");
+          } else {
+            const { data: sessionData } = await supabase.auth.getSession();
+            onVerified(sessionData.session);
+            console.log("onverified session2");
+          }
+        }
+      }
+    } catch (err) {
+      showSnackbar("An error occurred during verification.", "error");
     } finally {
       setLoading(false);
     }
@@ -77,28 +57,21 @@ function MFAVerificationScreen() {
       <FormLabel>Verification Code</FormLabel>
       <TextInput
         placeholder="Enter 6-digit code"
-        value={verificationCode}
-        onChangeText={setVerificationCode}
+        value={code}
+        onChangeText={setCode}
         keyboardType="numeric"
         maxLength={6}
         autoFocus
+        editable={!loading}
       />
       
       <PrimaryButton
         iconName="checkmark-outline"
         title={loading ? "Verifying..." : "Verify"}
-        onPress={verifyMFA}
-        loading={loading}
-      />
-      
-      <SecondaryButton
-        iconName="refresh-outline"
-        title="Resend Code"
-        onPress={resendCode}
+        onPress={handleVerify}
         loading={loading}
       />
     </ScreenContainer>
   );
 }
 
-export default MFAVerificationScreen; 

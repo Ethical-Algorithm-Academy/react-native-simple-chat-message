@@ -41,7 +41,10 @@
       ],
       "signingConfig": {
         "debug": {
-          "keystore": "./keystore/debug_ealgorithm_academy_keys.jks"
+          "keystore": "./keystore/debug_ealgorithm_academy_keys.jks",
+          "storePassword": "Algorithm2022@",
+          "keyAlias": "ethicalalgorithmacademy",
+          "keyPassword": "Algorithm2022@"
         }
       }
     },

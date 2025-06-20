@@ -29,59 +29,71 @@ import { SnackbarProvider, useSnackbar } from "./contexts/SnackbarContext";
 import Snackbar from "./components/Snackbar";
 
 const Stack = createNativeStackNavigator();
-const EVENT_TYPES = {
-  INITIAL_SESSION: 'INITIAL_SESSION',
-  SIGNED_IN: 'SIGNED_IN',
-  SIGNED_OUT: 'SIGNED_OUT',
-  TOKEN_REFRESHED: 'TOKEN_REFRESHED',
-  USER_UPDATED: 'USER_UPDATED',
-};
-
 
 function AppContent() {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
   const [sessionType, setSessionType] = useState(null);
+  const [pendingMfa, setPendingMfa] = useState(null); // { ticket, factorId }
+  const [mfaVerified, setMfaVerified] = useState(false); // new flag
+  const [requiresMfa, setRequiresMfa] = useState(false); // new flag
   const { snackbar, hideSnackbar } = useSnackbar();
 
+  // Check if the user has a verified TOTP factor after login/session
+  const checkIfRequiresMfa = async (user) => {
+    if (!user) {
+      setRequiresMfa(false);
+      setMfaVerified(false);
+      return;
+    }
+    try {
+      const { data: factors, error } = await supabase.auth.mfa.listFactors();
+      if (error) {
+        setRequiresMfa(false);
+        setMfaVerified(false);
+        return;
+      }
+      const hasVerifiedTOTP = factors.totp?.some(factor => factor.status === 'verified');
+      setRequiresMfa(!!hasVerifiedTOTP);
+      if (!hasVerifiedTOTP) setMfaVerified(false);
+    } catch (e) {
+      setRequiresMfa(false);
+      setMfaVerified(false);
+    }
+  };
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log('Auth event:', event);
-        console.log('User:', session?.user?.email);
-        
+        const isValidSession = session && session.user && session.access_token;
         switch (event) {
-          case EVENT_TYPES.INITIAL_SESSION:
-            console.log('Initial session:', session ? 'Found' : 'None');
-            setSession(session);
+          case 'INITIAL_SESSION':
+            setSession(isValidSession ? session : null);
             setLoading(false);
+            if (isValidSession) await checkIfRequiresMfa(session.user);
             break;
-            
-          case EVENT_TYPES.SIGNED_IN:
-            console.log('User signed in successfully!');
-            setSession(session);
+          case 'SIGNED_IN':
+            if (isValidSession) {
+              setSession(session);
+              setPendingMfa(null);
+              await checkIfRequiresMfa(session.user);
+            }
             break;
-            
-          case EVENT_TYPES.SIGNED_OUT:
-            console.log('User signed out');
+          case 'SIGNED_OUT':
             setSession(null);
             setSessionType(null);
+            setPendingMfa(null);
+            setMfaVerified(false);
+            setRequiresMfa(false);
             break;
-            
-          case EVENT_TYPES.TOKEN_REFRESHED:
-            console.log('Token refreshed');
-            setSession(session);
+          case 'TOKEN_REFRESHED':
+            if (isValidSession) setSession(session);
             break;
-            
-          case EVENT_TYPES.USER_UPDATED:
-            console.log('User updated');
-            setSession(session);
+          case 'USER_UPDATED':
+            if (isValidSession) setSession(session);
             break;
-          
           default:
-            console.log('Other auth event:', event);
-            setSession(session);
+            if (isValidSession) setSession(session);
         }
       }
     );
@@ -163,6 +175,34 @@ function AppContent() {
     };
   }, []);
 
+  // Handler to be passed to LoginScreen
+  const handlePendingMfa = ({ ticket, factorId }) => {
+    setPendingMfa({ ticket, factorId });
+  };
+
+  // Handler to be passed to MFAVerificationScreen
+  const handleMfaVerified = (session) => {
+    setSession(session);
+    setPendingMfa(null);
+    setMfaVerified(true);
+  };
+
+  // If session exists and user requires MFA but hasn't verified, show MFA screen
+  useEffect(() => {
+    if (session && requiresMfa && !mfaVerified && !pendingMfa) {
+      // Start MFA challenge for the user
+      (async () => {
+        const { data: factors } = await supabase.auth.mfa.listFactors();
+        const verifiedTOTP = factors.totp?.find(factor => factor.status === 'verified');
+        if (verifiedTOTP) {
+          // Start challenge
+          const { data: mfaChallenge } = await supabase.auth.mfa.challenge({ factorId: verifiedTOTP.id });
+          setPendingMfa({ challengeId: mfaChallenge.id, factorId: verifiedTOTP.id });
+        }
+      })();
+    }
+  }, [session, requiresMfa, mfaVerified, pendingMfa]);
+
   if (loading) {
     return <LoadingScreen />;
   }
@@ -181,35 +221,37 @@ function AppContent() {
           }
         }}
       >
-        {session ? (
+        {/* Centralized navigation logic for authentication and MFA */}
+        {pendingMfa ? (
+          <Stack.Screen
+            name={NAV_MFA_VERIFICATION_SCREEN}
+            children={() => (
+              <MFAVerificationScreen
+                challengeId={pendingMfa.challengeId}
+                factorId={pendingMfa.factorId}
+                onVerified={handleMfaVerified}
+              />
+            )}
+          />
+        ) : session && (!requiresMfa || mfaVerified) ? (
           sessionType === 'recovery' ? (
             <Stack.Screen name={NAV_RESET_PASSWORD_SCREEN} component={ResetPasswordScreen} />
           ) : (
             <>
               <Stack.Screen name={NAV_MAIN_APP} component={MainApp} />
               <Stack.Screen name={NAV_MFA_SETUP_SCREEN} component={MFASetupScreen} />
-              <Stack.Screen name={NAV_MFA_VERIFICATION_SCREEN} component={MFAVerificationScreen} />
             </>
           )
         ) : (
           <>
-            <Stack.Screen name={NAV_LOGIN_SCREEN} component={LoginScreen} />
             <Stack.Screen
-              name={NAV_CREATE_ACCOUNT_SCREEN}
-              component={CreateAccountScreen}
+              name={NAV_LOGIN_SCREEN}
+              children={() => <LoginScreen onPendingMfa={handlePendingMfa} />}
             />
-            <Stack.Screen
-              name={NAV_FORGOT_PASSWORD_SCREEN}
-              component={ForgotPasswordScreen}
-            />
-            <Stack.Screen
-              name={NAV_MAGIC_LINK_SCREEN}
-              component={MagicLinkScreen}
-            />
-            <Stack.Screen
-              name={NAV_RESET_PASSWORD_SCREEN}
-              component={ResetPasswordScreen}
-            />
+            <Stack.Screen name={NAV_CREATE_ACCOUNT_SCREEN} component={CreateAccountScreen} />
+            <Stack.Screen name={NAV_FORGOT_PASSWORD_SCREEN} component={ForgotPasswordScreen} />
+            <Stack.Screen name={NAV_MAGIC_LINK_SCREEN} component={MagicLinkScreen} />
+            <Stack.Screen name={NAV_RESET_PASSWORD_SCREEN} component={ResetPasswordScreen} />
           </>
         )}
       </Stack.Navigator>
