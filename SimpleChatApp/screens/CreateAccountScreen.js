@@ -47,7 +47,7 @@ function CreateAccountScreen() {
         password: password,
         options: {
           data: {
-            full_name: fullName,
+            name: fullName,
           },
         },
       });

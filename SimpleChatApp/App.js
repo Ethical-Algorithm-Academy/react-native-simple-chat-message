@@ -14,7 +14,10 @@ import {
   NAV_RESET_PASSWORD_SCREEN,
   NAV_MAIN_APP,
   NAV_MFA_SETUP_SCREEN,
-  NAV_MFA_VERIFICATION_SCREEN,
+  NAV_MFA_VERIFICATION_SCREEN,  
+  NAV_ADDMESSAGE_SCREEN ,
+  NAV_CONFIGURATIONS_SCREEN ,
+  NAV_MESSAGEDETAILS_SCREEN,
 } from "./constants/navigation";
 
 import LoginScreen from "./screens/LoginScreen";
@@ -25,7 +28,12 @@ import ResetPasswordScreen from "./screens/ResetPasswordScreen";
 import MainApp from "./screens/MainApp";
 import MFASetupScreen from "./screens/MFASetupScreen";
 import MFAVerificationScreen from "./screens/MFAVerificationScreen";
+import ConfigurationsScreen from './screens/ConfigurationsScreen';
+import AddMessageScreen from './screens/AddMessageScreen';
+import MessageDetailsScreen from './screens/MessageDetailsScreen'
+
 import { SnackbarProvider, useSnackbar } from "./contexts/SnackbarContext";
+
 import Snackbar from "./components/Snackbar";
 
 const Stack = createNativeStackNavigator();
@@ -42,6 +50,12 @@ function AppContent() {
   // Check if the user has a verified TOTP factor after login/session
   const checkIfRequiresMfa = async (user) => {
     if (!user) {
+      setRequiresMfa(false);
+      setMfaVerified(false);
+      return;
+    }
+    // Only enforce MFA for email/password logins
+    if (user.app_metadata?.provider !== 'email') {
       setRequiresMfa(false);
       setMfaVerified(false);
       return;
@@ -240,6 +254,9 @@ function AppContent() {
             <>
               <Stack.Screen name={NAV_MAIN_APP} component={MainApp} />
               <Stack.Screen name={NAV_MFA_SETUP_SCREEN} component={MFASetupScreen} />
+              <Stack.Screen name={NAV_CONFIGURATIONS_SCREEN} component={ConfigurationsScreen} />
+              <Stack.Screen name={NAV_ADDMESSAGE_SCREEN} component={AddMessageScreen} />
+              <Stack.Screen name={NAV_MESSAGEDETAILS_SCREEN} component={MessageDetailsScreen} />
             </>
           )
         ) : (
@@ -251,7 +268,7 @@ function AppContent() {
             <Stack.Screen name={NAV_CREATE_ACCOUNT_SCREEN} component={CreateAccountScreen} />
             <Stack.Screen name={NAV_FORGOT_PASSWORD_SCREEN} component={ForgotPasswordScreen} />
             <Stack.Screen name={NAV_MAGIC_LINK_SCREEN} component={MagicLinkScreen} />
-            <Stack.Screen name={NAV_RESET_PASSWORD_SCREEN} component={ResetPasswordScreen} />
+            <Stack.Screen name={NAV_RESET_PASSWORD_SCREEN} component={ResetPasswordScreen} />            
           </>
         )}
       </Stack.Navigator>
