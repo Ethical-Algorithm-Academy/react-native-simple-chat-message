@@ -2,6 +2,7 @@ import React from "react";
 import { View, Text, StyleSheet, Pressable } from "react-native";
 import { RFValue } from "react-native-responsive-fontsize";
 import { Ionicons } from "@expo/vector-icons";
+import { resolveDiscoveryAsync } from "expo-auth-session";
 
 const defaultMessage = {
   seen: false,
@@ -90,30 +91,28 @@ const MessageBubble = ({ message = {}, filter = "", onpress }) => {
           </View>
           <View style={styles.lowertext}>
             <View style={styles.textplusicon}>
-              <View style={styles.icon}>
-                {isCurrentUser && (
-                  msg.seen ? (
+              {isCurrentUser && (
+                msg.seen ? (
+                  <View style={styles.icon}>
                     <Ionicons name="checkmark-done" size={16} color="blue" />
-                  ) : (
+                  </View>
+                ) : (
+                  <View style={styles.icon}>
                     <Ionicons name="checkmark" size={16} color="gray" />
-                  )
-                )}
-              </View>
+                  </View>
+                )
+              )}
               <Text
                 style={[
                   styles.textwithoutnumber,
                   msg.numbernewmessages && styles.text,
-                  !isCurrentUser && !msg.seen && styles.unseenText,
+                  !isCurrentUser && !msg.seen && styles.unseenText
                 ]}
                 numberOfLines={1}
                 ellipsizeMode="tail"
               >
-                {msg.type === 'group' && msg.sender ? (
-                  <Text style={styles.senderName}>{msg.sender}: </Text>
-                ) : null}
-                {msg.type === 'individual' && msg.sender === 'You' ? (
-                  <Text style={styles.senderName}>You: </Text>
-                ) : null}
+                {((msg.type === 'group' && msg.sender) ? `${msg.sender}: ` : '')}
+                {((msg.type === 'individual' && msg.sender === 'You') ? 'You: ' : '')}
                 {msg.text}
               </Text>
             </View>
@@ -165,6 +164,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     width: "100%",
+    
   },
   time: {
     color: "rgb(110, 110, 110)",
@@ -188,13 +188,13 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.6,
-    borderColor: "red",
+    
   },
   row: {
     flexDirection: "row",
     alignItems: "center",
     width: "100%",
-    borderColor: "green",
+    
   },
   avatar: {
     marginRight: RFValue(8),
@@ -219,6 +219,14 @@ const styles = StyleSheet.create({
   unseenText: {
     fontWeight: 'bold',
     color: '#222',
+  },
+  bubble: {
+    borderWidth: 2,
+    borderColor: 'blue',
+  },
+  bubbleText: {
+    borderWidth: 2,
+    borderColor: 'green',
   },
 });
 

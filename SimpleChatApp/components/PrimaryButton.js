@@ -3,7 +3,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { RFValue } from "react-native-responsive-fontsize";
 
 function PrimaryButton({ 
-  iconName, 
+  iconName =null, 
   title, 
   onPress, 
   isLoading = false, 
