@@ -138,7 +138,7 @@ function AddMessageScreen() {
   };
 
   return (
-    <View style={{ flex: 1 }}>
+    
       <ScreenContainer>
         <View style={styles.header}>
           <Pressable onPress={() => navigation.goBack()}>
@@ -176,9 +176,10 @@ function AddMessageScreen() {
             loading ? <Text>Loading...</Text> : <Text>No users found.</Text>
           }
         />
+          <AddMensage onPress={createChannel} />
       </ScreenContainer>
-      <AddMensage onPress={createChannel} />
-    </View>
+    
+    
   );
 }
 
