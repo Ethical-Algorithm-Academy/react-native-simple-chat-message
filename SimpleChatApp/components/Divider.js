@@ -1,15 +1,21 @@
 import { View, Text, StyleSheet } from "react-native";
 import { RFValue } from "react-native-responsive-fontsize";
 
-function Divider({ text }) {
-  return (
+const Divider = ({ fullcontainer, text }) => {
+  return fullcontainer ? (
+    <View style={styles.fullcontainer}>
+      <View style={styles.line} />
+      {text && <Text style={styles.text}>{text}</Text>}
+      <View style={styles.line} />
+    </View>
+  ) : (
     <View style={styles.container}>
       <View style={styles.line} />
-      <Text style={styles.text}>{text}</Text>
+      {text && <Text style={styles.text}>{text}</Text>}
       <View style={styles.line} />
     </View>
   );
-}
+};
 
 const styles = StyleSheet.create({
   container: {
@@ -17,6 +23,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginVertical: RFValue(16),
     marginHorizontal: RFValue(8),
+  },
+  fullcontainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginVertical: RFValue(8),
   },
   line: {
     flex: 1,

@@ -1,220 +1,325 @@
-import { View, Text, StyleSheet, Pressable } from "react-native";
-import { RFValue } from "react-native-responsive-fontsize";
-import { Ionicons } from "@expo/vector-icons";
-import { supabase } from "../lib/supabase";
-import { useState, useEffect } from "react";
-import { useSnackbar } from "../contexts/SnackbarContext";
-import { useNavigation } from "@react-navigation/native";
+import React, { useState, useEffect, useCallback } from "react";
+import {
+  View,
+  FlatList,
+  StyleSheet,
+  TouchableOpacity,
+  AppState,
+} from "react-native";
+import Icon from "react-native-vector-icons/MaterialIcons";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 
-import { NAV_MFA_SETUP_SCREEN } from "../constants/navigation";
+import {
+  NAV_CONFIGURATIONS_SCREEN,
+  NAV_ADDMESSAGE_SCREEN,
+  NAV_MESSAGEDETAILS_SCREEN,
+} from "../constants/navigation";
+
+import ScreenContainer from "../components/ScreenContainer";
+import ScreenTitle from "../components/ScreenTitle";
+import MessageBubble from "../components/MessageBubble";
+import Divider from "../components/Divider";
+import AddMensage from "../components/AddMessage";
+import SearchBar from "../components/SearchBar";
+import { supabase } from "../lib/supabase";
+import { useSnackbar } from "../contexts/SnackbarContext";
+
+// Utility function to wait until the WebSocket connection is open before subscribing
+async function waitForSocketOpen(socket, timeout = 5000) {
+  const start = Date.now();
+  return new Promise((resolve, reject) => {
+    function check() {
+      if (socket.conn.readyState === 1) {
+        resolve();
+      } else if (Date.now() - start > timeout) {
+        reject(new Error('WebSocket did not open in time'));
+      } else {
+        setTimeout(check, 50);
+      }
+    }
+    check();
+  });
+}
 
 function MainApp() {
-  const [user, setUser] = useState(null);
-  const [hasMFA, setHasMFA] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [signingOut, setSigningOut] = useState(false);
-  
+  const [filter, setFilter] = useState("");
+  const [userRole, setUserRole] = useState(null);
+  const [channels, setChannels] = useState([]);
+  const [currentUserId, setCurrentUserId] = useState(null);
+  const { showError } = useSnackbar();
   const navigation = useNavigation();
-  const { showSnackbar } = useSnackbar();
+  const subscriptionStatusRef = React.useRef(null);
+
+  const fetchChannels = useCallback(async () => {
+    if (!currentUserId) return;
+
+    const { data: userChannels, error: userChannelsError } = await supabase
+      .from("user_channels")
+      .select("channel_id")
+      .eq("user_id", currentUserId);
+
+    if (userChannelsError) {
+      showError(userChannelsError.message);
+      setChannels([]);
+      return;
+    }
+
+    const channelIds = (userChannels || []).map((row) => row.channel_id);
+    if (channelIds.length === 0) {
+      setChannels([]);
+      return;
+    }
+
+    const { data: channelsData, error: channelsError } = await supabase
+      .from("channels")
+      .select(
+        `
+        id,
+        name,
+        type,
+        created_at,
+        user_channels(user_id, users(id, name)),
+        messages:messages!messages_channel_id_fkey(
+          id, content, sent_at, user_id, seen
+        )
+      `
+      )
+      .in("id", channelIds)
+      .order("sent_at", { foreignTable: "messages", ascending: false })
+      .limit(100, { foreignTable: "messages" });
+
+    if (channelsError) {
+      showError(channelsError.message);
+      setChannels([]);
+    } else {
+      setChannels(channelsData || []);
+    }
+  }, [currentUserId, showError]);
 
   useEffect(() => {
-    checkUserAndMFA();
+    const fetchUserRole = async () => {
+      const { data } = await supabase.auth.getUser();
+      const user = data?.user;
+      if (user) {
+        setCurrentUserId(user.id);
+
+        const { data: userData, error } = await supabase
+          .from("users")
+          .select("role")
+          .eq("id", user.id)
+          .single();
+
+        if (userData?.role) {
+          setUserRole(userData.role);
+        }
+        if (error) {
+          showError(error.message);
+        }
+      }
+    };
+
+    fetchUserRole();
   }, []);
 
-  const checkUserAndMFA = async () => {
-    try {
-      setLoading(true);
-      
-      // Get current user
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
-      setUser(currentUser);
+  useFocusEffect(
+    useCallback(() => {
+      let isActive = true;
+      const setup = async () => {
+        if (!currentUserId) return;
 
-      // Only check MFA if user exists
-      if (currentUser) {
-        // Check MFA factors
-        const { data: factors, error } = await supabase.auth.mfa.listFactors();
-        
-        if (error) {
-          console.error('Error checking MFA factors:', error);
-          return;
+        // Fetch the latest channels for the user
+        fetchChannels();
+
+        // --- WebSocket/channel subscription logic ---
+        // Get the current open channels from Supabase client
+        const channels = supabase.getChannels();
+        // Try to get the socket from the first channel (if any exist)
+        const socket = channels[0]?.socket;
+        // If a socket exists and has a connection object, wait for it to be open
+        if (socket && socket.conn) {
+          try {
+            // Wait until the WebSocket is open before subscribing
+            await waitForSocketOpen(socket);
+          } catch (e) {
+            // If the socket does not open in time, log the error and abort subscription
+            console.error(e);
+            return;
+          }
         }
 
-        // Check if user has verified TOTP factors
-        const hasVerifiedTOTP = factors.totp?.some(factor => factor.status === 'verified');
-        setHasMFA(hasVerifiedTOTP);
-      } else {
-        // User is not authenticated, clear MFA state
-        setHasMFA(false);
+        // Now that the socket is open (or there was no socket), subscribe to the channel
+        const subscription = supabase
+          .channel("messages_realtime_mainapp")
+          .on(
+            "postgres_changes",
+            { event: "*", schema: "public", table: "messages" },
+            payload => {
+              if (isActive) {
+                // On message change, refetch channels
+                console.log('Change received!', payload);
+                fetchChannels();
+              }
+            }
+          )
+          .subscribe((status) => {
+            // Log subscription status for debugging
+            if (status === 'SUBSCRIBED') {
+              console.log('Successfully subscribed to messages_realtime_mainapp');
+            } else if (status === 'CHANNEL_ERROR') {
+              console.error('Error subscribing to messages_realtime_mainapp');
+            } else if (status === 'CLOSED') {
+              console.log('Channel closed');
+            }
+          });
+
+        // Cleanup function to remove the channel subscription when the screen is unfocused or component unmounts
+        return () => {
+          isActive = false;
+          supabase.removeChannel(subscription)
+        };
+      };
+
+      setup();
+
+      // Synchronous cleanup to mark effect as inactive
+      return () => {
+        isActive = false;
+      };
+    }, [currentUserId, fetchChannels])
+  );
+
+  const sortedChannels = [...channels].sort((a, b) => {
+    const aTime = a.messages?.[0]?.sent_at
+      ? new Date(a.messages[0].sent_at).getTime()
+      : new Date(a.created_at || 0).getTime();
+    const bTime = b.messages?.[0]?.sent_at
+      ? new Date(b.messages[0].sent_at).getTime()
+      : new Date(b.created_at || 0).getTime();
+    return bTime - aTime;
+  });
+
+  const renderItem = ({ item }) => {
+    // Get the channel name
+    let title = item.name;
+    if (item.type === "individual" && item.user_channels) {
+      const otherUser = item.user_channels
+        .map((uc) => uc.users)
+        .find((u) => u && u.id !== currentUserId);
+      if (otherUser?.name) {
+        title = otherUser.name;
       }
-    } catch (error) {
-      console.error('Error checking user and MFA:', error);
-    } finally {
-      setLoading(false);
     }
-  };
 
-  const handleSignOut = async () => {
-    try {
-      setSigningOut(true);
-      await supabase.auth.signOut();
-      showSnackbar('Signed out successfully', 'success');
-    } catch (error) {
-      console.error('Error signing out:', error);
-      showSnackbar('Failed to sign out', 'error');
-    } finally {
-      setSigningOut(false);
+    // Get the last message sent
+    const lastMessage = item.messages?.[0] ?? null;
+    let numbernewmessages = 0;
+
+    // Calculate number of unseen messages for the current user, limit to 100 (99+)
+    if (item.messages) {
+      const unseen = item.messages.filter(
+        (m) => m.user_id !== currentUserId && !m.seen
+      );
+      numbernewmessages = unseen.length;
     }
-  };
 
-  const handleMFASetup = () => {
-    navigation.navigate(NAV_MFA_SETUP_SCREEN);
-  };
+    // Get the name of the person who sent the last message
+    let sender = "";
+    if (lastMessage) {
+      if (lastMessage.user_id === currentUserId) {
+        sender = "You";
+      } else if (item.type === "group" && item.user_channels) {
+        const senderUser = item.user_channels
+          .map((uc) => uc.users)
+          .find((u) => u && u.id === lastMessage.user_id);
+        sender = senderUser?.name || "";
+      } else if (item.type === "individual" && item.user_channels) {
+        const otherUser = item.user_channels
+          .map((uc) => uc.users)
+          .find((u) => u && u.id !== currentUserId);
+        sender = otherUser?.name || "";
+      }
+    }
 
-  if (loading) {
+    // Sends the values
+    const message = {
+      id: item.id,
+      title,
+      type: item.type,
+      text: lastMessage ? lastMessage.content : "This channel is empty",
+      timestamp: lastMessage ? lastMessage.sent_at : "",
+      sender,
+      seen: lastMessage?.seen ?? false,
+      numbernewmessages,
+    };
+
     return (
-      <View style={styles.container}>
-        <Text style={styles.loadingText}>Loading...</Text>
-      </View>
+      <MessageBubble
+        message={message}
+        filter={filter}
+        onpress={() =>
+          navigation.navigate(NAV_MESSAGEDETAILS_SCREEN, {
+            channelId: item.id,
+          })
+        }
+      />
     );
-  }
+  };
 
   return (
-    <View style={styles.container}>
+    <ScreenContainer>
       <View style={styles.header}>
-        <Ionicons name="person-circle" size={RFValue(60)} color="rgb(0, 0, 0)" />
-        <Text style={styles.welcomeText}>Welcome!</Text>
-        <Text style={styles.emailText}>{user?.email}</Text>
-      </View>
-
-      <View style={styles.content}>
-        <View style={styles.mfaSection}>
-          <View style={styles.mfaHeader}>
-            <Ionicons 
-              name={hasMFA ? "shield-checkmark" : "shield-outline"} 
-              size={RFValue(24)} 
-              color={hasMFA ? "rgb(34, 197, 94)" : "rgb(156, 163, 175)"} 
-            />
-            <Text style={styles.mfaTitle}>Two-Factor Authentication</Text>
-          </View>
-          
-          <Text style={styles.mfaStatus}>
-            {hasMFA ? "Enabled" : "Not enabled"}
-          </Text>
-          
-          <Pressable
-            style={[styles.mfaButton, hasMFA && styles.mfaButtonDisabled]}
-            onPress={hasMFA ? null : handleMFASetup}
-            disabled={hasMFA}
-          >
-            <Text style={[styles.mfaButtonText, hasMFA && styles.mfaButtonTextDisabled]}>
-              {hasMFA ? "MFA Already Enabled" : "Set Up MFA"}
-            </Text>
-          </Pressable>
-        </View>
-
-        <Pressable
-          style={[styles.signOutButton, signingOut && styles.signOutButtonDisabled]}
-          onPress={handleSignOut}
-          disabled={signingOut}
+        <ScreenTitle title="Messages" textAlign="left" />
+        <TouchableOpacity
+          style={styles.configButton}
+          onPress={() => navigation.navigate(NAV_CONFIGURATIONS_SCREEN)}
         >
-          <Ionicons name="log-out-outline" size={RFValue(20)} color="rgb(255, 255, 255)" />
-          <Text style={styles.signOutButtonText}>
-            {signingOut ? "Signing Out..." : "Sign Out"}
-          </Text>
-        </Pressable>
+          <Icon name="settings" size={24} color="#000" />
+        </TouchableOpacity>
       </View>
-    </View>
+
+      <SearchBar
+        placeholder="Search conversations..."
+        value={filter}
+        onChangeText={setFilter}
+      />
+
+      <Divider fullcontainer={true} />
+
+      {currentUserId && (
+        <FlatList
+          data={sortedChannels.filter((ch) =>
+            ch.type === "group"
+              ? ch.name.toLowerCase().includes(filter.toLowerCase())
+              : renderItem({ item: ch })
+                  .props.message.title.toLowerCase()
+                  .includes(filter.toLowerCase())
+          )}
+          renderItem={renderItem}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.messageList}
+        />
+      )}
+
+      {(userRole === "admin" || userRole === "manager") && (
+        <AddMensage
+          onPress={() => navigation.navigate(NAV_ADDMESSAGE_SCREEN)}
+        />
+      )}
+    </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "rgb(255, 255, 255)",
-    padding: RFValue(20),
-  },
   header: {
-    alignItems: "center",
-    marginTop: RFValue(60),
-    marginBottom: RFValue(40),
-  },
-  welcomeText: {
-    fontSize: RFValue(24),
-    fontWeight: "bold",
-    color: "rgb(0, 0, 0)",
-    marginTop: RFValue(16),
-  },
-  emailText: {
-    fontSize: RFValue(16),
-    color: "rgb(107, 114, 128)",
-    marginTop: RFValue(8),
-  },
-  content: {
-    flex: 1,
-  },
-  mfaSection: {
-    backgroundColor: "rgb(248, 248, 248)",
-    borderRadius: RFValue(12),
-    padding: RFValue(20),
-    marginBottom: RFValue(24),
-  },
-  mfaHeader: {
     flexDirection: "row",
-    alignItems: "center",
-    marginBottom: RFValue(12),
+    justifyContent: "space-between",
   },
-  mfaTitle: {
-    fontSize: RFValue(18),
-    fontWeight: "600",
-    color: "rgb(0, 0, 0)",
-    marginLeft: RFValue(12),
+  configButton: {
+    padding: 8,
   },
-  mfaStatus: {
-    fontSize: RFValue(14),
-    color: "rgb(107, 114, 128)",
-    marginBottom: RFValue(16),
-  },
-  mfaButton: {
-    backgroundColor: "rgb(59, 130, 246)",
-    borderRadius: RFValue(8),
-    paddingVertical: RFValue(12),
-    paddingHorizontal: RFValue(16),
-    alignItems: "center",
-  },
-  mfaButtonDisabled: {
-    backgroundColor: "rgb(156, 163, 175)",
-  },
-  mfaButtonText: {
-    color: "rgb(255, 255, 255)",
-    fontSize: RFValue(16),
-    fontWeight: "600",
-  },
-  mfaButtonTextDisabled: {
-    color: "rgb(229, 231, 235)",
-  },
-  signOutButton: {
-    backgroundColor: "rgb(239, 68, 68)",
-    borderRadius: RFValue(8),
-    paddingVertical: RFValue(12),
-    paddingHorizontal: RFValue(16),
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  signOutButtonDisabled: {
-    backgroundColor: "rgb(156, 163, 175)",
-  },
-  signOutButtonText: {
-    color: "rgb(255, 255, 255)",
-    fontSize: RFValue(16),
-    fontWeight: "600",
-    marginLeft: RFValue(8),
-  },
-  loadingText: {
-    fontSize: RFValue(18),
-    color: "rgb(107, 114, 128)",
-    textAlign: "center",
-    marginTop: RFValue(100),
+  messageList: {
+    flexGrow: 1,
+    width: "100%",
   },
 });
 
