@@ -178,8 +178,7 @@ function AddMessageScreen() {
         />
           <AddMensage onPress={createChannel} />
       </ScreenContainer>
-    
-    
+
   );
 }
 

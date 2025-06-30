@@ -5,9 +5,10 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { supabase } from "./lib/supabase";
 import * as Linking from "expo-linking";
 import { View, Text } from "react-native";
+import { navigationRef } from './navigationRef';
+import { NAV_LOGIN_SCREEN } from './constants/navigation';
 
 import {
-  NAV_LOGIN_SCREEN,
   NAV_CREATE_ACCOUNT_SCREEN,
   NAV_FORGOT_PASSWORD_SCREEN,
   NAV_MAGIC_LINK_SCREEN,
@@ -45,7 +46,7 @@ function AppContent() {
   const [pendingMfa, setPendingMfa] = useState(null); // { ticket, factorId }
   const [mfaVerified, setMfaVerified] = useState(false); // new flag
   const [requiresMfa, setRequiresMfa] = useState(false); // new flag
-  const { snackbar, hideSnackbar } = useSnackbar();
+  const { snackbar, hideSnackbar, showSuccess } = useSnackbar();
 
   // Check if the user has a verified TOTP factor after login/session
   const checkIfRequiresMfa = async (user) => {
@@ -116,42 +117,48 @@ function AppContent() {
     const handleDeepLink = async (url) => {
       if (url) {
         console.log('Deep link received:', url);
-        
-        // Extract the URL from the event object
         const deepLinkUrl = url.url || url;
-        
-        // Check if this is a magic link (contains access_token)
+
+        // Only handle magic link and password reset with setSession
         if (deepLinkUrl.includes('access_token=')) {
           try {
             console.log('Processing deep link...');
-            
-            // Parse the URL to extract tokens
             const urlParts = deepLinkUrl.split('#');
             if (urlParts.length > 1) {
               const hashParams = urlParts[1];
               const params = new URLSearchParams(hashParams);
-              
               const accessToken = params.get('access_token');
               const refreshToken = params.get('refresh_token');
               const type = params.get('type');
-              
-              if (accessToken && refreshToken) {
-                console.log('Found authentication tokens, setting session...');
-                
-                // Set the session manually
+
+              if (deepLinkUrl.startsWith('simplechatapp://confirm-account')) {
+                console.log('[DeepLink] Handling confirm-account link');
+                console.log('[DeepLink] Calling showSuccess for Account confirmed!');
+                showSuccess('Account confirmed! Please log in.');
+                setSession(null);
+                setSessionType(null);
+                setPendingMfa(null);
+                setMfaVerified(false);
+                setRequiresMfa(false);
+                if (navigationRef.isReady()) {
+                  console.log('[DeepLink] Navigating to login screen');
+                  navigationRef.navigate(NAV_LOGIN_SCREEN);
+                } else {
+                  console.log('[DeepLink] Navigation ref not ready');
+                }
+                return;
+              } else if (accessToken && refreshToken) {
+                // Only set session for magic link or password reset
                 const { data, error } = await supabase.auth.setSession({
                   access_token: accessToken,
                   refresh_token: refreshToken,
                 });
-                
                 if (error) {
                   console.error('Error setting session:', error);
                 } else {
                   if (type === 'recovery') {
-                    console.log('Reset password link detected');
                     setSessionType('recovery');
                   } else {
-                    console.log('Magic link detected');
                     setSessionType('magic');
                   }
                 }
@@ -222,7 +229,7 @@ function AppContent() {
   }
 
   return (
-    <NavigationContainer>
+    <NavigationContainer ref={navigationRef}>
       <StatusBar style="dark" />
       <Stack.Navigator
         screenOptions={{

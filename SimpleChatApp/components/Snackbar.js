@@ -74,6 +74,7 @@ function Snackbar({
       requestAnimationFrame(() => {
         showSnackbar();
       });
+      console.log('[Snackbar] Showing:', { message, type, duration });
     } else if (!visible && isVisible) {
       hideSnackbar();
     }

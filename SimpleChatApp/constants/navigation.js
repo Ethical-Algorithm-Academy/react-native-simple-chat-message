@@ -8,7 +8,7 @@ export const NAV_MFA_SETUP_SCREEN = "MFASetupScreen";
 export const NAV_MFA_VERIFICATION_SCREEN = "MFAVerificationScreen";
 export const NAV_CONFIGURATIONS_SCREEN = 'Configurations';
 export const NAV_ADDMESSAGE_SCREEN = 'AddMessage';
-export const NAV_MESSAGEDETAILS_SCREEN = 'MessageDetails';
+export const NAV_MESSAGEDETAILS_SCREEN = 'MessageDetails'
 
 export const DEEPLINK_RESET_PASSWORD = "simplechatapp://reset-password";
 export const DEEPLINK_LOGIN = "simplechatapp://login";

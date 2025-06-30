@@ -136,7 +136,7 @@ function MainApp() {
         // Try to get the socket from the first channel (if any exist)
         const socket = channels[0]?.socket;
         // If a socket exists and has a connection object, wait for it to be open
-        if (socket && socket.conn) {
+        if (socket && socket.conn && typeof socket.conn.readyState !== 'undefined') {
           try {
             // Wait until the WebSocket is open before subscribing
             await waitForSocketOpen(socket);
@@ -240,17 +240,40 @@ function MainApp() {
       }
     }
 
+    // Compose the message preview title and text
+    let previewTitle = item.type === "group" ? item.name : title;
+    let previewText = lastMessage ? lastMessage.content : "This channel is empty";
+    if (
+      lastMessage &&
+      (!lastMessage.content || lastMessage.content.trim() === "") &&
+      lastMessage.file_type
+    ) {
+      if (lastMessage.file_type.startsWith('image/')) {
+        previewTitle = '(Image)';
+        previewText = '(Image)';
+      } else if (lastMessage.file_type.startsWith('video/')) {
+        previewTitle = '(Video)';
+        previewText = '(Video)';
+      } else {
+        previewTitle = '(File)';
+        previewText = '(File)';
+      }
+    }
+    console.log('[MainApp] Channel:', item.id, 'lastMessage:', lastMessage, 'previewTitle:', previewTitle, 'previewText:', previewText);
+
     // Sends the values
     const message = {
       id: item.id,
-      title,
+      title: previewTitle,
       type: item.type,
-      text: lastMessage ? lastMessage.content : "This channel is empty",
+      text: previewText,
+      content: previewText,
       timestamp: lastMessage ? lastMessage.sent_at : "",
       sender,
       seen: lastMessage?.seen ?? false,
       numbernewmessages,
     };
+    console.log('[MainApp] Final message object:', message);
 
     return (
       <MessageBubble
