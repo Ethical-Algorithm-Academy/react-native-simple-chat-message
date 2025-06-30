@@ -49,6 +49,7 @@ function CreateAccountScreen() {
           data: {
             name: fullName,
           },
+          emailRedirectTo: 'simplechatapp://confirm-account',
         },
       });
 

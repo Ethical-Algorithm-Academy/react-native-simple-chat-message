@@ -111,9 +111,12 @@ const MessageBubble = ({ message = {}, filter = "", onpress }) => {
                 numberOfLines={1}
                 ellipsizeMode="tail"
               >
-                {((msg.type === 'group' && msg.sender) ? `${msg.sender}: ` : '')}
-                {((msg.type === 'individual' && msg.sender === 'You') ? 'You: ' : '')}
-                {msg.text}
+                {msg.type === 'group' && msg.sender && !isCurrentUser ? `${msg.sender}: ` : ''}
+                {(!msg.text || msg.text.trim() === '') && msg.file_type ? (
+                  msg.file_type.startsWith('image/') ? '(Image)' :
+                  msg.file_type.startsWith('video/') ? '(Video)' :
+                  '(File)'
+                ) : msg.text}
               </Text>
             </View>
             {msg.numbernewmessages > 0 && (

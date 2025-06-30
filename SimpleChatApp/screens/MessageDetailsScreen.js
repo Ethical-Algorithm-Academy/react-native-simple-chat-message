@@ -1,19 +1,47 @@
-import { View, Text, StyleSheet, TextInput, Pressable, Platform, KeyboardAvoidingView, ScrollView, FlatList } from 'react-native';
-import { useRoute, useNavigation } from '@react-navigation/native';
-import { supabase } from '../lib/supabase';
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { Ionicons } from '@expo/vector-icons';
-import { RFValue } from 'react-native-responsive-fontsize';
-import ScreenContainer from '../components/ScreenContainer';
-import LoadingScreen from '../components/LoadingScreen';
+import {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  useMemo,
+  React,
+} from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TextInput,
+  Pressable,
+  KeyboardAvoidingView,
+  FlatList,
+  Image,
+  Modal,
+  TouchableOpacity,
+  ActivityIndicator,
+} from "react-native";
+import { useRoute, useNavigation } from "@react-navigation/native";
+import { RFValue } from "react-native-responsive-fontsize";
+
+import * as DocumentPicker from "expo-document-picker";
+import { Ionicons } from "@expo/vector-icons";
+import Video from 'react-native-video';
+
+import ScreenContainer from "../components/ScreenContainer";
+import LoadingScreen from "../components/LoadingScreen";
+import ChatMessageBubble from "../components/ChatMessageBubble";
+
+import { supabase } from "../lib/supabase";
+import { groupMessagesWithSections } from "../lib/chatUtils";
+import { uploadFileToSupabase, MAX_FILE_SIZE } from "../lib/fileUpload";
+import { useSnackbar } from '../contexts/SnackbarContext';
 
 function MessageDetails() {
   const route = useRoute();
   const navigation = useNavigation();
   const { channelId } = route.params;
-  const [title, setTitle] = useState('');
+  const [title, setTitle] = useState("");
   const [currentUserId, setCurrentUserId] = useState(null);
-  const [channelType, setChannelType] = useState('');
+  const [channelType, setChannelType] = useState("");
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
   const [sending, setSending] = useState(false);
@@ -21,13 +49,21 @@ function MessageDetails() {
   const currentUserIdRef = useRef(currentUserId);
   const flatListRef = useRef();
   const [isAtBottom, setIsAtBottom] = useState(true);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [imageModalVisible, setImageModalVisible] = useState(false);
+  const [modalImageUrl, setModalImageUrl] = useState(null);
+  const [videoModalVisible, setVideoModalVisible] = useState(false);
+  const [modalVideoUrl, setModalVideoUrl] = useState(null);
+  const { showError, showWarning, showSuccess, showInfo } = useSnackbar();
 
   const fetchMessages = useCallback(async () => {
     const { data, error } = await supabase
-      .from('messages')
-      .select('id, content, sent_at, user_id, seen, users(name)')
-      .eq('channel_id', channelId)
-      .order('sent_at', { ascending: true });
+      .from("messages")
+      .select(
+        "id, content, sent_at, user_id, seen, users(name), file_url, file_type, file_name, file_size"
+      )
+      .eq("channel_id", channelId)
+      .order("sent_at", { ascending: true });
     if (!error) {
       setMessages(data || []);
     }
@@ -38,24 +74,24 @@ function MessageDetails() {
       const { data: userData } = await supabase.auth.getUser();
       const userId = userData?.user?.id;
       setCurrentUserId(userId);
-      console.log('Set currentUserId:', userId);
+      console.log("Set currentUserId:", userId);
       const { data: channel, error } = await supabase
-        .from('channels')
-        .select('id, name, type, user_channels(user_id, users(id, name))')
-        .eq('id', channelId)
+        .from("channels")
+        .select("id, name, type, user_channels(user_id, users(id, name))")
+        .eq("id", channelId)
         .single();
       if (error || !channel) {
-        setTitle('Channel not found');
-        setChannelType('');
+        setTitle("Channel not found");
+        setChannelType("");
         return;
       }
       setChannelType(channel.type);
-      if (channel.type === 'group') {
+      if (channel.type === "group") {
         setTitle(channel.name);
-      } else if (channel.type === 'individual' && channel.user_channels) {
+      } else if (channel.type === "individual" && channel.user_channels) {
         const otherUser = channel.user_channels
-          .map(uc => uc.users)
-          .find(u => u && u.id !== userId);
+          .map((uc) => uc.users)
+          .find((u) => u && u.id !== userId);
         setTitle(otherUser && otherUser.name ? otherUser.name : channel.name);
       } else {
         setTitle(channel.name);
@@ -72,10 +108,15 @@ function MessageDetails() {
     fetchMessagesRef.current = fetchMessages;
 
     const subscription = supabase
-      .channel('messages_realtime_' + channelId)
+      .channel("messages_realtime_" + channelId)
       .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'messages', filter: `channel_id=eq.${channelId}` },
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "messages",
+          filter: `channel_id=eq.${channelId}`,
+        },
         (payload) => {
           fetchMessages();
         }
@@ -108,12 +149,12 @@ function MessageDetails() {
         !item.seen
       ) {
         const { error, data } = await supabase
-          .from('messages')
+          .from("messages")
           .update({ seen: true })
-          .eq('id', item.id);
+          .eq("id", item.id);
         if (!error) {
-          setMessages(prev =>
-            prev.map(msg =>
+          setMessages((prev) =>
+            prev.map((msg) =>
               msg.id === item.id ? { ...msg, seen: true } : msg
             )
           );
@@ -122,48 +163,61 @@ function MessageDetails() {
     });
   }).current;
 
-  const renderMessage = (item) => {
-    const isCurrentUser = item.user_id === currentUserId;
-    let senderName = '';
-    if (channelType === 'group') {
-      senderName = isCurrentUser ? 'You' : (item.users && item.users.name ? item.users.name : '');
-    }
-    // Format time and date
-    const sentDate = new Date(item.sent_at);
-    const now = new Date();
-    const isToday = sentDate.getDate() === now.getDate() &&
-      sentDate.getMonth() === now.getMonth() &&
-      sentDate.getFullYear() === now.getFullYear();
-    let timeString = sentDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    // Only show hour, date is in section header
-    let timeDisplay = timeString;
+  const getPublicFileUrl = (filePath) => {
+    const { data } = supabase.storage
+      .from("simple-chat-bucket")
+      .getPublicUrl(filePath);
+    return data?.publicUrl || null;
+  };
+
+  const renderItem = useCallback(
+    ({ item }) => {
+      if (item.section) {
     return (
       <View
-        key={item.id}
-        style={[
-          styles.messageBubble,
-          isCurrentUser ? styles.myMessage : styles.otherMessage,
-        ]}
-      >
-        <Text style={styles.messageText}>
-          {channelType === 'group' && senderName ? <Text style={styles.senderName}>{senderName}: </Text> : null}
-          {item.content}
-        </Text>
-        <View style={{ flexDirection: 'row', alignItems: 'center', alignSelf: isCurrentUser ? 'flex-end' : 'flex-start' }}>
-          <Text style={isCurrentUser ? styles.messageTime : [styles.messageTime, styles.messageTimeLeft]}>
-            {timeDisplay}
+            style={{
+              alignItems: "center",
+              marginVertical: 6,
+              marginHorizontal: 0,
+            }}
+          >
+            <Text
+              style={{
+                fontWeight: "bold",
+                color: "#888",
+                fontSize: RFValue(13),
+                paddingHorizontal: 8,
+              }}
+            >
+              {item.label}
           </Text>
-          {isCurrentUser && (
-            item.seen ? (
-              <Ionicons name="checkmark-done" size={16} color="blue" style={{ marginLeft: 6 }} />
-            ) : (
-              <Ionicons name="checkmark" size={16} color="gray" style={{ marginLeft: 6 }} />
-            )
-          )}
-        </View>
       </View>
     );
-  };
+      }
+      // Attach publicUrl to item for ChatMessageBubble
+      let publicUrl = null;
+      if (item.file_url) {
+        publicUrl = getPublicFileUrl(item.file_url);
+      }
+      return (
+        <ChatMessageBubble
+          item={{ ...item, publicUrl }}
+          isCurrentUser={item.user_id === currentUserId}
+          channelType={channelType}
+          onImagePress={(url) => {
+            setModalImageUrl(url);
+            setImageModalVisible(true);
+          }}
+          onVideoPress={(url) => {
+            setModalVideoUrl(url);
+            setVideoModalVisible(true);
+          }}
+          styles={styles}
+        />
+      );
+    },
+    [currentUserId, channelType]
+  );
 
   const lastIndex = messages.length > 0 ? messages.length - 1 : 0;
 
@@ -171,7 +225,8 @@ function MessageDetails() {
     const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
     const paddingToBottom = 20; // px
     setIsAtBottom(
-      layoutMeasurement.height + contentOffset.y >= contentSize.height - paddingToBottom
+      layoutMeasurement.height + contentOffset.y >=
+        contentSize.height - paddingToBottom
     );
   }, []);
 
@@ -181,55 +236,100 @@ function MessageDetails() {
     index,
   });
 
-  const sendMessage = async () => {
-    if (!newMessage.trim() || !currentUserId) return;
-    setSending(true);
-    const { data, error } = await supabase
-      .from('messages')
-      .insert([
-        {
-          content: newMessage,
-          user_id: currentUserId,
-          channel_id: channelId,
-        },
-      ])
-      .select()
-      .single();
-    setSending(false);
-    if (!error && data) {
-      setMessages((prev) => [...prev, data]);
-      setNewMessage("");
-      // Only scroll to bottom if user is at bottom
-      if (isAtBottom && flatListRef.current) {
-        setTimeout(() => {
-          flatListRef.current?.scrollToEnd({ animated: true });
-        }, 50);
+  const handleFilePick = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({});
+      console.log("DocumentPicker result:", result);
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const file = result.assets[0];
+        if (file.size > MAX_FILE_SIZE) {
+          showWarning("The selected file exceeds the 10MB limit. Please choose a smaller file.");
+          return;
+        }
+        showInfo("Selected: " + file.name);
+        setSelectedFile(file);
+      } else {
+        showInfo("No file selected or cancelled");
       }
+    } catch (e) {
+      console.log("DocumentPicker error:", e);
+      showError("Error: " + e.message);
     }
   };
 
-  // Group messages by day and insert date sections
-  function groupMessagesWithSections(messages) {
-    if (!messages.length) return [];
-    const now = new Date();
-    const todayStr = now.toLocaleDateString([], { day: '2-digit', month: '2-digit', year: 'numeric' });
-    const groups = {};
-    messages.forEach(msg => {
-      const dateObj = new Date(msg.sent_at);
-      const dateStr = dateObj.toLocaleDateString([], { day: '2-digit', month: '2-digit', year: 'numeric' });
-      if (!groups[dateStr]) groups[dateStr] = [];
-      groups[dateStr].push(msg);
-    });
-    // Build the array with section headers
-    const result = [];
-    Object.keys(groups).sort((a, b) => new Date(a) - new Date(b)).forEach(dateStr => {
-      result.push({ section: true, dateStr, label: dateStr === todayStr ? 'Today' : dateStr });
-      result.push(...groups[dateStr]);
-    });
-    return result;
-  }
+  const sendMessage = async () => {
+    console.log('[sendMessage] called');
+    if ((!newMessage.trim() && !selectedFile) || !currentUserId) {
+      console.log('[sendMessage] No message or file, or no user. Aborting.');
+      return;
+    }
+    setSending(true);
+    console.log('[sendMessage] setSending(true)');
 
-  const messagesWithSections = groupMessagesWithSections(messages);
+    try {
+      console.log('[sendMessage] Entered try block');
+      let fileInfo = null;
+      if (selectedFile) {
+        console.log('[sendMessage] Uploading file:', selectedFile);
+        fileInfo = await uploadFileToSupabase(selectedFile, channelId);
+        console.log('[sendMessage] After uploadFileToSupabase, fileInfo:', fileInfo);
+        fileInfo.fileSize = selectedFile.size;
+      }
+
+      const messagePayload = {
+        content: newMessage.trim(),
+          user_id: currentUserId,
+          channel_id: channelId,
+        ...(fileInfo && {
+          file_url: fileInfo.filePath,
+          file_type: fileInfo.fileType,
+          file_name: fileInfo.fileName,
+          file_size: fileInfo.fileSize,
+        }),
+      };
+      console.log('[sendMessage] Prepared messagePayload:', messagePayload);
+
+      console.log('[sendMessage] Awaiting supabase insert...');
+      const { data, error } = await supabase
+        .from("messages")
+        .insert([messagePayload])
+      .select()
+      .single();
+      console.log('[sendMessage] Supabase insert result:', { data, error });
+
+      if (error) {
+        console.log('[sendMessage] Supabase insert error:', error);
+        showError(error.message || "Failed to send message");
+        return;
+      }
+
+      setMessages((prev) => [...prev, data]);
+      console.log('[sendMessage] setMessages called with new data');
+      setNewMessage("");
+      console.log('[sendMessage] setNewMessage("")');
+      setSelectedFile(null);
+      console.log('[sendMessage] setSelectedFile(null)');
+      // Scroll to bottom if user is at bottom
+      if (isAtBottom && flatListRef.current) {
+        setTimeout(() => {
+          flatListRef.current?.scrollToEnd({ animated: true });
+          console.log('[sendMessage] flatListRef.current?.scrollToEnd called');
+        }, 50);
+      }
+    } catch (error) {
+      console.error('[sendMessage] Error in catch block:', error);
+      showError("Failed to send message");
+    } finally {
+      console.log('[sendMessage] Entered finally block');
+      setSending(false);
+      console.log('[sendMessage] setSending(false)');
+    }
+  };
+
+  const messagesWithSections = useMemo(
+    () => groupMessagesWithSections(messages),
+    [messages]
+  );
 
   useEffect(() => {
     flatListRef.current?.scrollToEnd({ animated: true });
@@ -241,39 +341,27 @@ function MessageDetails() {
 
   return (
     <ScreenContainer>
+      {/* HEADER */}
       <View style={styles.header}>
         <Pressable onPress={() => navigation.goBack()} style={styles.arrowIcon}>
           <Ionicons name="arrow-back" size={RFValue(24)} color="#000" />
         </Pressable>
         <Ionicons
-          name={channelType === 'group' ? 'people-circle' : 'person-circle'}
+          name={channelType === "group" ? "people-circle" : "person-circle"}
           size={RFValue(36)}
           color="#888"
           style={styles.profileIcon}
         />
         <Text style={styles.title}>{title}</Text>
       </View>
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={20}
-      >
+
+      {/* MESSAGES LIST */}
         <View style={{ flex: 1 }}>
-          {currentUserId && (
             <FlatList
               ref={flatListRef}
               data={messagesWithSections}
-              keyExtractor={item => item.id?.toString() || item.dateStr}
-              renderItem={({ item }) => {
-                if (item.section) {
-                  return (
-                    <View style={{ alignItems: 'center', marginVertical: 8 }}>
-                      <Text style={{ fontWeight: 'bold', color: '#888', fontSize: RFValue(13) }}>{item.label}</Text>
-                    </View>
-                  );
-                }
-                return renderMessage(item);
-              }}
+          keyExtractor={(item) => item.id?.toString() || item.dateStr}
+          renderItem={renderItem}
               showsVerticalScrollIndicator={false}
               contentContainerStyle={styles.messagesList}
               initialScrollIndex={lastIndex}
@@ -286,15 +374,57 @@ function MessageDetails() {
                 minIndexForVisible: 0,
                 autoscrollToTopThreshold: 10,
               }}
-            />
-          )}
+          keyboardShouldPersistTaps="handled"
+          initialNumToRender={20}
+          maxToRenderPerBatch={20}
+          windowSize={10}
+          removeClippedSubviews={true}
+        />
+      </View>
+
+      {/* FOOTER / INPUT */}
+      <KeyboardAvoidingView>
           <View style={styles.inputContainerWrapper}>
+          {selectedFile && (
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                marginBottom: 4,
+                marginLeft: 8,
+              }}
+            >
+              <Ionicons
+                name="document-attach-outline"
+                size={20}
+                color="#888"
+                style={{ marginRight: 6 }}
+              />
+              <Text style={{ color: "#333", fontSize: 14, flexShrink: 1 }}>
+                {selectedFile.name}
+              </Text>
+              <Pressable
+                onPress={() => setSelectedFile(null)}
+                style={{ marginLeft: 8 }}
+              >
+                <Ionicons name="close-circle" size={18} color="#888" />
+              </Pressable>
+            </View>
+          )}
             <View style={styles.inputContainer}>
+            {/* Attach File Button (moved to left, black color) */}
+            <Pressable
+              onPress={handleFilePick}
+              style={{ padding: RFValue(8), marginRight: RFValue(4) }}
+            >
+              <Ionicons name="attach-outline" size={RFValue(24)} color="#888" />
+            </Pressable>
               <TextInput
-                style={styles.textInput}
+              style={[styles.textInput, { backgroundColor: "#f8f8f8" }]}
                 value={newMessage}
                 onChangeText={setNewMessage}
                 placeholder="Type a message..."
+              placeholderTextColor="#222"
                 editable={!sending}
                 onSubmitEditing={sendMessage}
                 returnKeyType="send"
@@ -302,26 +432,109 @@ function MessageDetails() {
               <Pressable
                 onPress={sendMessage}
                 style={styles.sendButton}
-                disabled={sending || !newMessage.trim()}
+              disabled={sending || (!newMessage.trim() && !selectedFile)}
               >
+              {sending ? (
+                <ActivityIndicator size={24} color="#007AFF" />
+              ) : (
                 <Ionicons
                   name="send"
                   size={RFValue(24)}
-                  color={sending || !newMessage.trim() ? '#ccc' : '#007AFF'}
+                  color={
+                    sending || (!newMessage.trim() && !selectedFile)
+                      ? "#888"
+                      : "#007AFF"
+                  }
                 />
+              )}
               </Pressable>
-            </View>
           </View>
         </View>
       </KeyboardAvoidingView>
+
+      {/* Image Modal */}
+      <Modal
+        visible={imageModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setImageModalVisible(false)}
+      >
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(0,0,0,0.85)",
+            justifyContent: "center",
+            alignItems: "center",
+          }}
+        >
+          <TouchableOpacity
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+            }}
+            onPress={() => setImageModalVisible(false)}
+          />
+          {modalImageUrl && (
+            <Image
+              source={{ uri: modalImageUrl }}
+              style={{
+                width: "90%",
+                height: "70%",
+                resizeMode: "contain",
+                borderRadius: 16,
+                backgroundColor: "#222",
+              }}
+            />
+          )}
+        </View>
+      </Modal>
+      {/* Video Modal */}
+      <Modal
+        visible={videoModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setVideoModalVisible(false)}
+      >
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(0,0,0,0.85)",
+            justifyContent: "center",
+            alignItems: "center",
+          }}
+        >
+          <TouchableOpacity
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+            }}
+            onPress={() => setVideoModalVisible(false)}
+          />
+          {modalVideoUrl && (
+            <Video
+              source={{ uri: modalVideoUrl }}
+              style={{ width: '90%', height: '50%', borderRadius: 16, backgroundColor: '#222' }}
+              controls
+              resizeMode="contain"
+              paused={false}
+            />
+          )}
+        </View>
+      </Modal>
     </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: RFValue(8),
   },
   arrowIcon: {
@@ -333,67 +546,67 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: RFValue(20),
-    fontWeight: 'bold',
+    fontWeight: "bold",
     flex: 1,
   },
   messagesList: {
     paddingVertical: RFValue(8),
-    justifyContent: 'flex-end',
+    justifyContent: "flex-end",
   },
   messageBubble: {
     borderRadius: RFValue(12),
     padding: RFValue(12),
     marginBottom: RFValue(8),
-    maxWidth: '80%',
+    maxWidth: "80%",
   },
   myMessage: {
-    backgroundColor: '#007AFF',
-    alignSelf: 'flex-end',
+    backgroundColor: "#e3f0ff",
+    alignSelf: "flex-end",
   },
   otherMessage: {
-    backgroundColor: '#f1f1f1',
-    alignSelf: 'flex-start',
+    backgroundColor: "#f1f1f1",
+    alignSelf: "flex-start",
   },
   messageText: {
     fontSize: RFValue(16),
-    color: '#222',
+    color: "#222",
   },
   messageTime: {
     fontSize: RFValue(12),
-    color: '#888',
+    color: "#888",
     marginTop: RFValue(4),
-    textAlign: 'right',
+    textAlign: "right",
   },
   messageTimeLeft: {
-    textAlign: 'left',
+    textAlign: "left",
   },
   inputContainerWrapper: {
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     paddingBottom: RFValue(8),
   },
   inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     borderTopWidth: 1,
-    borderColor: '#eee',
+    borderColor: "#eee",
     paddingHorizontal: RFValue(8),
     paddingVertical: RFValue(4),
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
   },
   textInput: {
     flex: 1,
     fontSize: RFValue(16),
     padding: RFValue(10),
     borderRadius: RFValue(20),
-    backgroundColor: '#f1f1f1',
+    backgroundColor: "#f8f8f8",
     marginRight: RFValue(8),
   },
   sendButton: {
     padding: RFValue(8),
   },
   senderName: {
-    fontWeight: 'bold',
-    color: '#222',
+    fontWeight: "bold",
+    color: "#222",
   },
 });
 
