@@ -5,9 +5,16 @@ import {
   StyleSheet,
   TouchableOpacity,
   AppState,
+  Platform,
+  Alert,
+  Button,
 } from "react-native";
 import Icon from "react-native-vector-icons/MaterialIcons";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
+import crashlytics from "@react-native-firebase/crashlytics";
+import * as Notifications from "expo-notifications";
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import messaging from '@react-native-firebase/messaging';
 
 import {
   NAV_CONFIGURATIONS_SCREEN,
@@ -23,6 +30,76 @@ import AddMensage from "../components/AddMessage";
 import SearchBar from "../components/SearchBar";
 import { supabase } from "../lib/supabase";
 import { useSnackbar } from "../contexts/SnackbarContext";
+import sendNotificationToUser from "../lib/notification";
+
+// Key for storing FCM tokens by user in AsyncStorage
+const FCM_TOKEN_KEY = 'fcm_tokens_by_user';
+
+// Get all locally stored tokens
+const getStoredFcmTokens = async () => {
+  const json = await AsyncStorage.getItem(FCM_TOKEN_KEY);
+  return json ? JSON.parse(json) : {};
+};
+
+// Store token for a user
+const storeFcmTokenForUser = async (userId, token) => {
+  const tokens = await getStoredFcmTokens();
+  tokens[userId] = token;
+  await AsyncStorage.setItem(FCM_TOKEN_KEY, JSON.stringify(tokens));
+};
+
+// Get token for a user
+export const getFcmTokenForUser = async (userId) => {
+  const tokens = await getStoredFcmTokens();
+  return tokens[userId];
+};
+
+// Remove token for a user from Supabase (but keep in AsyncStorage)
+const removeFcmTokenFromSupabase = async (userId) => {
+  const token = await getFcmTokenForUser(userId);
+  if (!token) return;
+  const { data: user, error } = await supabase
+    .from('users')
+    .select('fcm_tokens')
+    .eq('id', userId)
+    .single();
+  if (!error && user) {
+    const tokens = (user.fcm_tokens || []).filter(t => t !== token);
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({ fcm_tokens: tokens })
+      .eq('id', userId);
+    if (updateError) {
+    }
+  }
+};
+
+// Add token for a user to Supabase array if not present
+const addFcmTokenToSupabase = async (userId, token) => {
+  const { data: user, error } = await supabase
+    .from('users')
+    .select('fcm_tokens')
+    .eq('id', userId)
+    .single();
+  if (!error && user) {
+    let tokens = user.fcm_tokens || [];
+    if (!Array.isArray(tokens)) {
+      tokens = [];
+    }
+    if (!tokens.includes(token)) {
+      const newTokens = [...tokens, token];
+      const { data: updateData, error: updateError } = await supabase
+        .from('users')
+        .update({ fcm_tokens: newTokens })
+        .eq('id', userId)
+        .select();
+      if (updateError) {
+      } else {
+      }
+    }
+  } else {
+  }
+};
 
 // Utility function to wait until the WebSocket connection is open before subscribing
 async function waitForSocketOpen(socket, timeout = 5000) {
@@ -32,7 +109,7 @@ async function waitForSocketOpen(socket, timeout = 5000) {
       if (socket.conn.readyState === 1) {
         resolve();
       } else if (Date.now() - start > timeout) {
-        reject(new Error('WebSocket did not open in time'));
+        reject(new Error("WebSocket did not open in time"));
       } else {
         setTimeout(check, 50);
       }
@@ -41,12 +118,28 @@ async function waitForSocketOpen(socket, timeout = 5000) {
   });
 }
 
+// Request permission and get token
+const getFcmTokenWithFirebase = async () => {
+  const authStatus = await messaging().requestPermission();
+  const enabled =
+    authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
+    authStatus === messaging.AuthorizationStatus.PROVISIONAL;
+
+  if (!enabled) {
+    return null;
+  }
+
+  const token = await messaging().getToken();
+  return token;
+};
+
 function MainApp() {
+  console.log('==== MainApp component rendered ====');
   const [filter, setFilter] = useState("");
   const [userRole, setUserRole] = useState(null);
   const [channels, setChannels] = useState([]);
   const [currentUserId, setCurrentUserId] = useState(null);
-  const { showError } = useSnackbar();
+  const { showError, showSuccess } = useSnackbar();
   const navigation = useNavigation();
   const subscriptionStatusRef = React.useRef(null);
 
@@ -97,6 +190,28 @@ function MainApp() {
   }, [currentUserId, showError]);
 
   useEffect(() => {
+    console.log('==== MainApp useEffect running ====');
+    const logSessionAndUser = async () => {
+      console.log('==== logSessionAndUser started ====');
+      try {
+        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+        console.log('==== got sessionData ====');
+        const { data: userData, error: userError } = await supabase.auth.getUser();
+        console.log('==== got userData ====');
+        console.log('================ MAIN APP SESSION DEBUG ================');
+        console.log('Session:', sessionData);
+        console.log('Session Error:', sessionError);
+        console.log('User:', userData?.user);
+        console.log('User Error:', userError);
+        console.log('Supabase Authenticated:', !!sessionData?.session?.access_token);
+        console.log('========================================================');
+        console.log('==== logSessionAndUser finished ====');
+      } catch (e) {
+        console.log('==== ERROR in logSessionAndUser ====');
+        console.error(e);
+      }
+    };
+    logSessionAndUser();
     const fetchUserRole = async () => {
       const { data } = await supabase.auth.getUser();
       const user = data?.user;
@@ -117,7 +232,6 @@ function MainApp() {
         }
       }
     };
-
     fetchUserRole();
   }, []);
 
@@ -126,61 +240,48 @@ function MainApp() {
       let isActive = true;
       const setup = async () => {
         if (!currentUserId) return;
-
         // Fetch the latest channels for the user
         fetchChannels();
-
         // --- WebSocket/channel subscription logic ---
         // Get the current open channels from Supabase client
         const channels = supabase.getChannels();
         // Try to get the socket from the first channel (if any exist)
         const socket = channels[0]?.socket;
         // If a socket exists and has a connection object, wait for it to be open
-        if (socket && socket.conn && typeof socket.conn.readyState !== 'undefined') {
+        if (
+          socket &&
+          socket.conn &&
+          typeof socket.conn.readyState !== "undefined"
+        ) {
           try {
             // Wait until the WebSocket is open before subscribing
             await waitForSocketOpen(socket);
           } catch (e) {
-            // If the socket does not open in time, log the error and abort subscription
-            console.error(e);
             return;
           }
         }
-
         // Now that the socket is open (or there was no socket), subscribe to the channel
         const subscription = supabase
           .channel("messages_realtime_mainapp")
           .on(
             "postgres_changes",
             { event: "*", schema: "public", table: "messages" },
-            payload => {
+            (payload) => {
               if (isActive) {
                 // On message change, refetch channels
-                console.log('Change received!', payload);
                 fetchChannels();
               }
             }
           )
           .subscribe((status) => {
-            // Log subscription status for debugging
-            if (status === 'SUBSCRIBED') {
-              console.log('Successfully subscribed to messages_realtime_mainapp');
-            } else if (status === 'CHANNEL_ERROR') {
-              console.error('Error subscribing to messages_realtime_mainapp');
-            } else if (status === 'CLOSED') {
-              console.log('Channel closed');
-            }
           });
-
         // Cleanup function to remove the channel subscription when the screen is unfocused or component unmounts
         return () => {
           isActive = false;
-          supabase.removeChannel(subscription)
+          supabase.removeChannel(subscription);
         };
       };
-
       setup();
-
       // Synchronous cleanup to mark effect as inactive
       return () => {
         isActive = false;
@@ -242,24 +343,25 @@ function MainApp() {
 
     // Compose the message preview title and text
     let previewTitle = item.type === "group" ? item.name : title;
-    let previewText = lastMessage ? lastMessage.content : "This channel is empty";
+    let previewText = lastMessage
+      ? lastMessage.content
+      : "This channel is empty";
     if (
       lastMessage &&
       (!lastMessage.content || lastMessage.content.trim() === "") &&
       lastMessage.file_type
     ) {
-      if (lastMessage.file_type.startsWith('image/')) {
-        previewTitle = '(Image)';
-        previewText = '(Image)';
-      } else if (lastMessage.file_type.startsWith('video/')) {
-        previewTitle = '(Video)';
-        previewText = '(Video)';
+      if (lastMessage.file_type.startsWith("image/")) {
+        previewTitle = "(Image)";
+        previewText = "(Image)";
+      } else if (lastMessage.file_type.startsWith("video/")) {
+        previewTitle = "(Video)";
+        previewText = "(Video)";
       } else {
-        previewTitle = '(File)';
-        previewText = '(File)';
+        previewTitle = "(File)";
+        previewText = "(File)";
       }
     }
-    console.log('[MainApp] Channel:', item.id, 'lastMessage:', lastMessage, 'previewTitle:', previewTitle, 'previewText:', previewText);
 
     // Sends the values
     const message = {
@@ -273,8 +375,7 @@ function MainApp() {
       seen: lastMessage?.seen ?? false,
       numbernewmessages,
     };
-    console.log('[MainApp] Final message object:', message);
-
+    
     return (
       <MessageBubble
         message={message}
@@ -288,16 +389,63 @@ function MainApp() {
     );
   };
 
+  // Call this after successful login (when you have userId)
+  const handleLoginFcmToken = useCallback(async (userId) => {
+    try {
+      // Request notification permissions first
+      const { status } = await Notifications.requestPermissionsAsync();
+      if (status !== 'granted') {
+        showError('Notification permission not granted. Token will not be added.');
+        return;
+      }
+      let token = await getFcmTokenForUser(userId);
+      if (!token) {
+        token = await getFcmTokenWithFirebase();
+        if (!token) {
+          return;
+        }
+        await storeFcmTokenForUser(userId, token);
+      }
+      // Add token to Supabase if not already present
+      await addFcmTokenToSupabase(userId, token);
+    } catch (e) {
+    }
+  }, []);
+
+  // Example: Call handleLoginFcmToken when user logs in
+  useEffect(() => {
+    if (currentUserId) {
+      handleLoginFcmToken(currentUserId);
+    }
+  }, [currentUserId, handleLoginFcmToken]);
+
+  // You should call handleLogoutFcmToken(currentUserId) in your logout logic
+  // For example, in your logout function:
+  // await handleLogoutFcmToken(currentUserId);
+  // ...then clear user session/state
+
+  useEffect(() => {
+    const unsubscribe = messaging().onTokenRefresh(async (newToken) => {
+      if (currentUserId) {
+        await storeFcmTokenForUser(currentUserId, newToken);
+        await addFcmTokenToSupabase(currentUserId, newToken);
+      }
+    });
+    return unsubscribe;
+  }, [currentUserId]);
+
   return (
     <ScreenContainer>
       <View style={styles.header}>
         <ScreenTitle title="Messages" textAlign="left" />
-        <TouchableOpacity
-          style={styles.configButton}
-          onPress={() => navigation.navigate(NAV_CONFIGURATIONS_SCREEN)}
-        >
-          <Icon name="settings" size={24} color="#000" />
-        </TouchableOpacity>
+        <View style={{ flexDirection: "row" }}>      
+          <TouchableOpacity
+            style={styles.configButton}
+            onPress={() => navigation.navigate(NAV_CONFIGURATIONS_SCREEN)}
+          >
+            <Icon name="settings" size={24} color="#000" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <SearchBar

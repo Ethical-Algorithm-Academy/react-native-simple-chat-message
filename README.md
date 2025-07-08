@@ -75,3 +75,21 @@ npm install react-native-snackbar
 MIT
 
 
+
+.\gradlew assembleRelease
+adb install -r app/build/outputs/apk/release/app-release.apk
+adb logcat *:S ReactNativeJS:V
+
+npm install -g firebase-tools
+firebase login
+
+firebase appdistribution:distribute app/build/outputs/apk/release/app-release.apk \
+  --app <your-app-id> \
+  --groups "<tester-group-names>" \
+  --release-notes "Release notes here"
+
+firebase appdistribution:distribute app/build/outputs/apk/release/app-release.apk --app 1:1022823270192:android:387a91b0a8e87cb68deaf5 --groups "test" --release-notes "Release notes here"
+
+
+
+  
