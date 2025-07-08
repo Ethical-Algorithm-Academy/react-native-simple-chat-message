@@ -3,10 +3,14 @@ import { StatusBar } from "expo-status-bar";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { supabase } from "./lib/supabase";
+import { reinitSupabase } from "./lib/supabase";
 import * as Linking from "expo-linking";
 import { View, Text } from "react-native";
 import { navigationRef } from './navigationRef';
 import { NAV_LOGIN_SCREEN } from './constants/navigation';
+import crashlytics from '@react-native-firebase/crashlytics';
+import messaging from '@react-native-firebase/messaging';
+import * as Notifications from 'expo-notifications';
 
 import {
   NAV_CREATE_ACCOUNT_SCREEN,
@@ -46,7 +50,7 @@ function AppContent() {
   const [pendingMfa, setPendingMfa] = useState(null); // { ticket, factorId }
   const [mfaVerified, setMfaVerified] = useState(false); // new flag
   const [requiresMfa, setRequiresMfa] = useState(false); // new flag
-  const { snackbar, hideSnackbar, showSuccess } = useSnackbar();
+  const { snackbar, hideSnackbar, showSuccess, showError, showInfo } = useSnackbar();
 
   // Check if the user has a verified TOTP factor after login/session
   const checkIfRequiresMfa = async (user) => {
@@ -78,37 +82,55 @@ function AppContent() {
   };
 
   useEffect(() => {
+    console.log('[App.js] supabase instance:', supabase);
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        const isValidSession = session && session.user && session.access_token;
-        switch (event) {
-          case 'INITIAL_SESSION':
-            setSession(isValidSession ? session : null);
-            setLoading(false);
-            if (isValidSession) await checkIfRequiresMfa(session.user);
-            break;
-          case 'SIGNED_IN':
-            if (isValidSession) {
-              setSession(session);
-              setPendingMfa(null);
-              await checkIfRequiresMfa(session.user);
+        try {
+          console.log('[AuthStateChange] Event received:', event, session);
+          const isValidSession = session && session.user && session.access_token;
+          console.log(`[AuthStateChange] Event: ${event}, isValidSession: ${!!isValidSession}`, session);
+          if (event === 'SIGNED_IN' && isValidSession) {
+            try {
+              console.log('[Supabase] onAuthStateChange: About to call reinitSupabase');
+              reinitSupabase();
+              console.log('[Supabase] onAuthStateChange: Called reinitSupabase');
+            } catch (e) {
+              console.log('[Supabase] onAuthStateChange: Error calling reinitSupabase:', e);
             }
-            break;
-          case 'SIGNED_OUT':
-            setSession(null);
-            setSessionType(null);
-            setPendingMfa(null);
-            setMfaVerified(false);
-            setRequiresMfa(false);
-            break;
-          case 'TOKEN_REFRESHED':
-            if (isValidSession) setSession(session);
-            break;
-          case 'USER_UPDATED':
-            if (isValidSession) setSession(session);
-            break;
-          default:
-            if (isValidSession) setSession(session);
+          }
+          switch (event) {
+            case 'INITIAL_SESSION':
+              setSession(isValidSession ? session : null);
+              setLoading(false);
+              if (isValidSession) await checkIfRequiresMfa(session.user);
+              break;
+            case 'SIGNED_IN':
+              if (isValidSession) {
+                setSession(session);
+                setPendingMfa(null);
+                await checkIfRequiresMfa(session.user);
+              }
+              break;
+            case 'SIGNED_OUT':
+              console.log('[AuthStateChange] Event: SIGNED_OUT, session set to null');
+              setSession(null);
+              setSessionType(null);
+              setPendingMfa(null);
+              setMfaVerified(false);
+              setRequiresMfa(false);
+              break;
+            case 'TOKEN_REFRESHED':
+              if (isValidSession) setSession(session);
+              break;
+            case 'USER_UPDATED':
+              if (isValidSession) setSession(session);
+              break;
+            default:
+              console.log('[AuthStateChange] Default case for event:', event);
+              if (isValidSession) setSession(session);
+          }
+        } catch (err) {
+          console.error('[AuthStateChange] Handler error:', err);
         }
       }
     );
@@ -149,10 +171,24 @@ function AppContent() {
                 return;
               } else if (accessToken && refreshToken) {
                 // Only set session for magic link or password reset
+                console.log("Before set session");
+                console.log("Before set session");
+                console.log("Before set session");
                 const { data, error } = await supabase.auth.setSession({
                   access_token: accessToken,
                   refresh_token: refreshToken,
                 });
+                console.log("AFter set session");
+                console.log("AFter set session");
+                try {
+                  console.log('[Supabase] About to call reinitSupabase');
+                  reinitSupabase();
+                  console.log('[Supabase] Called reinitSupabase');
+                } catch (e) {
+                  console.log('[Supabase] Error calling reinitSupabase:', e);
+                }
+                console.los("AFter reset session");
+                // Log the current session after setSession
                 if (error) {
                   console.error('Error setting session:', error);
                 } else {
@@ -194,6 +230,18 @@ function AppContent() {
       subscription.unsubscribe();
       linkSubscription?.remove();
     };
+  }, [supabase]); // <-- Add supabase as a dependency
+
+  useEffect(() => {
+    crashlytics().log('App mounted.');
+    console.log('App mounted.');
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      const { data: { session }, error } = await supabase.auth.getSession();
+      console.log('[App Start] Restored session:', session, error);
+    })();
   }, []);
 
   // Handler to be passed to LoginScreen
@@ -223,6 +271,34 @@ function AppContent() {
       })();
     }
   }, [session, requiresMfa, mfaVerified, pendingMfa]);
+
+  useEffect(() => {
+    // Foreground handler
+    const unsubscribe = messaging().onMessage(async remoteMessage => {
+      console.log('[FCM] Foreground notification received:', remoteMessage);
+      const title = remoteMessage.notification?.title || 'Notification';
+      const body = remoteMessage.notification?.body || '';
+      showInfo(`${title}: ${body}`);
+    });
+    return unsubscribe;
+  }, [showInfo]);
+
+  // Background/quit handler (must be outside component, but we log here for completeness)
+  useEffect(() => {
+    messaging().setBackgroundMessageHandler(async remoteMessage => {
+      console.log('[FCM] Background/quit notification received:', remoteMessage);
+
+      // // Show a local notification using expo-notifications
+      // await Notifications.scheduleNotificationAsync({
+      //   content: {
+      //     title: remoteMessage.notification?.title || 'Notification',
+      //     body: remoteMessage.notification?.body || '',
+      //     data: remoteMessage.data,
+      //   },
+      //   trigger: null, // Show immediately
+      // });
+    });
+  }, []);
 
   if (loading) {
     return <LoadingScreen />;

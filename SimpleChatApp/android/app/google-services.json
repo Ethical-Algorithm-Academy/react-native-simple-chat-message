@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1022823270192",
+    "project_id": "ethical-algorithm-academy",
+    "storage_bucket": "ethical-algorithm-academy.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1022823270192:android:387a91b0a8e87cb68deaf5",
+        "android_client_info": {
+          "package_name": "net.ealgorithm.simplechatapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBmGTwEw9KdcFGjMUDdDCq2nF7-W2g8LQg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

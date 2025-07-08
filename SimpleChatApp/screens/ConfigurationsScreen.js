@@ -1,5 +1,5 @@
 import React from "react";
-import { View, StyleSheet } from "react-native";
+import { View, StyleSheet, Text } from "react-native";
 import { supabase } from "../lib/supabase";
 import PrimaryButton from "../components/PrimaryButton";
 import ScreenContainer from "../components/ScreenContainer";
@@ -7,10 +7,16 @@ import ScreenTitle from "../components/ScreenTitle";
 import { useNavigation } from "@react-navigation/native";
 import { NAV_MFA_SETUP_SCREEN } from "../constants/navigation";
 import { RFValue } from "react-native-responsive-fontsize";
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getFcmTokenForUser } from "./MainApp";
+import { CommonActions } from '@react-navigation/native';
+import { NAV_LOGIN_SCREEN } from "../constants/navigation";
 
 const ConfigurationsScreen = () => {
   const navigation = useNavigation();
   const [isMfaEnabled, setIsMfaEnabled] = React.useState(false);
+  const [loading, setLoading] = React.useState(false);
+  const { showSuccess, showError } = require('../contexts/SnackbarContext').useSnackbar();
 
   React.useEffect(() => {
     const checkMfa = async () => {
@@ -25,7 +31,50 @@ const ConfigurationsScreen = () => {
   }, []);
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    setLoading(true);
+    console.log('[Logout] Logout button pressed');
+    console.log('[ConfigurationsScreen] supabase instance:', supabase);
+    try {
+      // Get current user ID
+      const { data } = await supabase.auth.getUser();
+      const user = data?.user;
+      if (user) {
+        // Remove FCM token from Supabase for this user
+        const token = await getFcmTokenForUser(user.id);
+        if (token) {
+          const { data: userData, error } = await supabase
+            .from('users')
+            .select('fcm_tokens')
+            .eq('id', user.id)
+            .single();
+          if (!error && userData) {
+            const tokens = (userData.fcm_tokens || []).filter(t => t !== token);
+            const { error: updateError } = await supabase
+              .from('users')
+              .update({ fcm_tokens: tokens })
+              .eq('id', user.id);
+          }
+        }
+      }
+      console.log('[Logout] About to call supabase.auth.signOut');
+      
+      const { error } = await supabase.auth.signOut();
+      const { data: sessionData } = await supabase.auth.getSession();
+      console.log('[Logout] Session after signOut:', sessionData);
+      if (error) {
+        console.error('[Logout] signOut error:', error);
+        showError('Logout failed: ' + error.message);
+      } else {
+        console.log('[Logout] signOut successful');
+        showSuccess('Logged out successfully!');
+        // Navigation reset removed; App.js will handle navigation based on session state
+      }
+    } catch (e) {
+      console.error('[Logout] Error:', e);
+      showError('Logout failed: ' + (e.message || e));
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleMFASetup = () => {
@@ -52,7 +101,8 @@ const ConfigurationsScreen = () => {
           onPress={handleLogout}
           style={styles.button}
           iconName="log-out-outline"
-          title="Logout"
+          title={loading ? "Logging out..." : "Logout"}
+          isDisabled={loading}
         />
         {/* Not implemented Yet */}
         <PrimaryButton

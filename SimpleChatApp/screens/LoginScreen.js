@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet, Pressable, Image } from "react-native";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { RFValue } from "react-native-responsive-fontsize";
 import { useNavigation } from "@react-navigation/native";
 import { supabase } from "../lib/supabase";

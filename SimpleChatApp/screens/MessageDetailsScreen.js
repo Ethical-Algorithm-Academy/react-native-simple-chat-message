@@ -34,6 +34,7 @@ import { supabase } from "../lib/supabase";
 import { groupMessagesWithSections } from "../lib/chatUtils";
 import { uploadFileToSupabase, MAX_FILE_SIZE } from "../lib/fileUpload";
 import { useSnackbar } from '../contexts/SnackbarContext';
+import sendNotificationToUser from '../lib/notification';
 
 function MessageDetails() {
   const route = useRoute();
@@ -55,6 +56,7 @@ function MessageDetails() {
   const [videoModalVisible, setVideoModalVisible] = useState(false);
   const [modalVideoUrl, setModalVideoUrl] = useState(null);
   const { showError, showWarning, showSuccess, showInfo } = useSnackbar();
+  const [currentUserName, setCurrentUserName] = useState("");
 
   const fetchMessages = useCallback(async () => {
     const { data, error } = await supabase
@@ -75,6 +77,19 @@ function MessageDetails() {
       const userId = userData?.user?.id;
       setCurrentUserId(userId);
       console.log("Set currentUserId:", userId);
+      // Fetch current user's name
+      let userName = "";
+      if (userId) {
+        const { data: userRow, error: userError } = await supabase
+          .from("users")
+          .select("name")
+          .eq("id", userId)
+          .single();
+        if (!userError && userRow && userRow.name) {
+          userName = userRow.name;
+          setCurrentUserName(userRow.name);
+        }
+      }
       const { data: channel, error } = await supabase
         .from("channels")
         .select("id, name, type, user_channels(user_id, users(id, name))")
@@ -306,23 +321,63 @@ function MessageDetails() {
       setMessages((prev) => [...prev, data]);
       console.log('[sendMessage] setMessages called with new data');
       setNewMessage("");
-      console.log('[sendMessage] setNewMessage("")');
       setSelectedFile(null);
-      console.log('[sendMessage] setSelectedFile(null)');
       // Scroll to bottom if user is at bottom
       if (isAtBottom && flatListRef.current) {
         setTimeout(() => {
           flatListRef.current?.scrollToEnd({ animated: true });
-          console.log('[sendMessage] flatListRef.current?.scrollToEnd called');
         }, 50);
       }
+      // Stop loading spinner as soon as message is sent
+      setSending(false);
+
+      // --- Send notifications to all users in the channel except sender ---
+      (async () => {
+        try {
+          console.log('[sendMessage] Preparing to notify users in channel', channelId);
+          // Fetch all users in the channel
+          const { data: userChannels, error: userChannelsError } = await supabase
+            .from('user_channels')
+            .select('user_id')
+            .eq('channel_id', channelId);
+          if (userChannelsError) {
+            console.error('[sendMessage] userChannelsError:', userChannelsError);
+          }
+          if (userChannels) {
+            const userIds = userChannels.map(uc => uc.user_id);
+            console.log('[sendMessage] Users in channel:', userIds);
+            for (const uc of userChannels) {
+              if (uc.user_id !== currentUserId) {
+                console.log(`[sendMessage] Sending notification to user: ${uc.user_id}`);
+                let notificationTitle = title;
+                let notificationBody = newMessage.trim() || (selectedFile && selectedFile.name) || 'New message';
+                if (channelType === 'individual') {
+                  notificationTitle = currentUserName;
+                } else if (channelType === 'group') {
+                  // Prepend sender's first name in bold markdown
+                  const firstName = currentUserName.split(' ')[0];
+                  notificationBody = `**${firstName}:** ${notificationBody}`;
+                }
+                await sendNotificationToUser(
+                  uc.user_id,
+                  notificationTitle,
+                  notificationBody
+                );
+              } else {
+                console.log(`[sendMessage] Skipping notification for sender: ${uc.user_id}`);
+              }
+            }
+            console.log('[sendMessage] Notification loop complete');
+          } else {
+            console.warn('[sendMessage] No userChannels found for channel', channelId);
+          }
+        } catch (notifyErr) {
+          console.error('[sendMessage] Notification error:', notifyErr);
+        }
+      })();
     } catch (error) {
       console.error('[sendMessage] Error in catch block:', error);
       showError("Failed to send message");
-    } finally {
-      console.log('[sendMessage] Entered finally block');
-      setSending(false);
-      console.log('[sendMessage] setSending(false)');
     }
   };
 
