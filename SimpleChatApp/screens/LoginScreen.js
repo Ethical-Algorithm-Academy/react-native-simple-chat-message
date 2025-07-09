@@ -24,7 +24,7 @@ import Divider from "../components/Divider";
 import NavigationLink from "../components/NavigationLink";
 
 
-function LoginScreen({ onPendingMfa }) {
+function LoginScreen({ onPendingMfa, onMfaFlowStarted, disableSignIn }) {
   const navigation = useNavigation();
   const { showSuccess, showError } = useSnackbar();
   const [showPassword, setShowPassword] = useState(false);
@@ -49,6 +49,8 @@ function LoginScreen({ onPendingMfa }) {
 
       // Handle MFA challenge
       if (data?.mfa) {
+        // Call onMfaFlowStarted to indicate MFA flow is starting
+        if (onMfaFlowStarted) onMfaFlowStarted();
         // Call onPendingMfa to set pending MFA state in App.js
         if (onPendingMfa) {
           onPendingMfa({ ticket: data.mfa.ticket, factorId: data.mfa.factorId });
@@ -120,6 +122,7 @@ function LoginScreen({ onPendingMfa }) {
         title={loading ? "Signing in..." : "Sign in"}
         onPress={handleLogin}
         loading={loading}
+        disabled={disableSignIn}
       />
       
       <SecondaryButton

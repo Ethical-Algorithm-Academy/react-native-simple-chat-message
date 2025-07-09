@@ -32,9 +32,9 @@ function ForgotPasswordScreen() {
       });
 
       if (error) throw error;
-
+      navigation.navigate(NAV_LOGIN_SCREEN)
+      navigation.goBack();
       showSuccess('Password reset instructions have been sent to your email');
-      
     } catch (error) {
       showError(error.message);
     } finally {
@@ -67,7 +67,7 @@ function ForgotPasswordScreen() {
       />
       
       <BackToLoginButton 
-        onPress={() => navigation.navigate(NAV_LOGIN_SCREEN)}
+        onPress={() => navigation.goBack()}
       />
     </ScreenContainer>
   );

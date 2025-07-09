@@ -5,12 +5,11 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { supabase } from "./lib/supabase";
 import { reinitSupabase } from "./lib/supabase";
 import * as Linking from "expo-linking";
-import { View, Text } from "react-native";
 import { navigationRef } from './navigationRef';
 import { NAV_LOGIN_SCREEN } from './constants/navigation';
 import crashlytics from '@react-native-firebase/crashlytics';
 import messaging from '@react-native-firebase/messaging';
-import * as Notifications from 'expo-notifications';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import {
   NAV_CREATE_ACCOUNT_SCREEN,
@@ -40,29 +39,43 @@ import MessageDetailsScreen from './screens/MessageDetailsScreen'
 import { SnackbarProvider, useSnackbar } from "./contexts/SnackbarContext";
 
 import Snackbar from "./components/Snackbar";
+import LoadingScreen from "./components/LoadingScreen";
+import { View } from 'react-native';
 
 const Stack = createNativeStackNavigator();
 
 function AppContent() {
   const [session, setSession] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true); // for other loading, e.g. login
+  const [startupLoading, setStartupLoading] = useState(true); // for app startup only
   const [sessionType, setSessionType] = useState(null);
   const [pendingMfa, setPendingMfa] = useState(null); // { ticket, factorId }
   const [mfaVerified, setMfaVerified] = useState(false); // new flag
   const [requiresMfa, setRequiresMfa] = useState(false); // new flag
+  const [checkingMfa, setCheckingMfa] = useState(false); // new state for MFA check
+  const [mfaFlowStarted, setMfaFlowStarted] = useState(false); // new state for MFA flow
   const { snackbar, hideSnackbar, showSuccess, showError, showInfo } = useSnackbar();
+
+  // Add this function inside AppContent so it can access setSessionType
+  const setSessionTypeWithLog = (type) => {
+    console.log('[setSessionType]', type);
+    setSessionType(type);
+  };
 
   // Check if the user has a verified TOTP factor after login/session
   const checkIfRequiresMfa = async (user) => {
+    setCheckingMfa(true); // Start checking MFA
     if (!user) {
       setRequiresMfa(false);
       setMfaVerified(false);
+      setCheckingMfa(false); // Done checking MFA
       return;
     }
-    // Only enforce MFA for email/password logins
-    if (user.app_metadata?.provider !== 'email') {
+    // Only enforce MFA for email/password logins (not Google or magic link)
+    if (user.app_metadata?.provider !== 'email' || sessionType === 'magic') {
       setRequiresMfa(false);
       setMfaVerified(false);
+      setCheckingMfa(false); // Done checking MFA
       return;
     }
     try {
@@ -70,6 +83,7 @@ function AppContent() {
       if (error) {
         setRequiresMfa(false);
         setMfaVerified(false);
+        setCheckingMfa(false); // Done checking MFA
         return;
       }
       const hasVerifiedTOTP = factors.totp?.some(factor => factor.status === 'verified');
@@ -78,22 +92,24 @@ function AppContent() {
     } catch (e) {
       setRequiresMfa(false);
       setMfaVerified(false);
+    } finally {
+      setCheckingMfa(false); // Done checking MFA
     }
   };
 
   useEffect(() => {
-    console.log('[App.js] supabase instance:', supabase);
+    //console.log('[App.js] supabase instance:', supabase);
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         try {
-          console.log('[AuthStateChange] Event received:', event, session);
+          //console.log('[AuthStateChange] Event received:', event, session);
           const isValidSession = session && session.user && session.access_token;
-          console.log(`[AuthStateChange] Event: ${event}, isValidSession: ${!!isValidSession}`, session);
+          //console.log(`[AuthStateChange] Event: ${event}, isValidSession: ${!!isValidSession}`, session);
           if (event === 'SIGNED_IN' && isValidSession) {
             try {
-              console.log('[Supabase] onAuthStateChange: About to call reinitSupabase');
+          //    console.log('[Supabase] onAuthStateChange: About to call reinitSupabase');
               reinitSupabase();
-              console.log('[Supabase] onAuthStateChange: Called reinitSupabase');
+            //  console.log('[Supabase] onAuthStateChange: Called reinitSupabase');
             } catch (e) {
               console.log('[Supabase] onAuthStateChange: Error calling reinitSupabase:', e);
             }
@@ -101,8 +117,10 @@ function AppContent() {
           switch (event) {
             case 'INITIAL_SESSION':
               setSession(isValidSession ? session : null);
-              setLoading(false);
-              if (isValidSession) await checkIfRequiresMfa(session.user);
+              if (isValidSession) {
+                await checkIfRequiresMfa(session.user);
+              }
+              setStartupLoading(false);
               break;
             case 'SIGNED_IN':
               if (isValidSession) {
@@ -118,6 +136,9 @@ function AppContent() {
               setPendingMfa(null);
               setMfaVerified(false);
               setRequiresMfa(false);
+              AsyncStorage.removeItem('mfa_verified').then(() => {
+                console.log('[MFA] mfa_verified removed from storage on logout');
+              });
               break;
             case 'TOKEN_REFRESHED':
               if (isValidSession) setSession(session);
@@ -171,31 +192,32 @@ function AppContent() {
                 return;
               } else if (accessToken && refreshToken) {
                 // Only set session for magic link or password reset
-                console.log("Before set session");
-                console.log("Before set session");
-                console.log("Before set session");
                 const { data, error } = await supabase.auth.setSession({
                   access_token: accessToken,
                   refresh_token: refreshToken,
                 });
-                console.log("AFter set session");
-                console.log("AFter set session");
                 try {
-                  console.log('[Supabase] About to call reinitSupabase');
                   reinitSupabase();
-                  console.log('[Supabase] Called reinitSupabase');
                 } catch (e) {
                   console.log('[Supabase] Error calling reinitSupabase:', e);
                 }
-                console.los("AFter reset session");
+
                 // Log the current session after setSession
                 if (error) {
                   console.error('Error setting session:', error);
                 } else {
+                  console.log("[RECOVERY ??]");
+                  console.log("[RECOVERY ??]");
+                  console.log("[RECOVERY ??]");
+                  console.log("[RECOVERY ??]");
+                  console.log("[RECOVERY ??]");
                   if (type === 'recovery') {
-                    setSessionType('recovery');
+                    console.log("[RECOVERY sim]");
+                    setSessionTypeWithLog('recovery');
+                    
                   } else {
-                    setSessionType('magic');
+                    console.log("[RECOVERY nao]");
+                    setSessionTypeWithLog('magic');
                   }
                 }
               }
@@ -214,7 +236,7 @@ function AppContent() {
       try {
         const initialURL = await Linking.getInitialURL();
         if (initialURL) {
-          console.log('App opened with URL:', initialURL);
+         // console.log('App opened with URL:', initialURL);
           
           // Handle the initial deep link
           await handleDeepLink(initialURL);
@@ -234,14 +256,33 @@ function AppContent() {
 
   useEffect(() => {
     crashlytics().log('App mounted.');
-    console.log('App mounted.');
-  }, []);
+      }, []);
 
   useEffect(() => {
     (async () => {
       const { data: { session }, error } = await supabase.auth.getSession();
-      console.log('[App Start] Restored session:', session, error);
+    //  console.log('[App Start] Restored session:', session, error);
     })();
+  }, []);
+
+  // Restore mfaVerified from storage on app start if session exists
+  useEffect(() => {
+    const restoreMfaVerified = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session && session.user) {
+        const mfaFlag = await AsyncStorage.getItem('mfa_verified');
+        console.log('[MFA] Restoring mfa_verified from storage:', mfaFlag);
+        if (mfaFlag === 'true') {
+          setMfaVerified(true);
+          console.log('[MFA] mfaVerified set to true from storage');
+        } else {
+          console.log('[MFA] mfaVerified not set from storage');
+        }
+      } else {
+        console.log('[MFA] No session found on restore');
+      }
+    };
+    restoreMfaVerified();
   }, []);
 
   // Handler to be passed to LoginScreen
@@ -249,11 +290,19 @@ function AppContent() {
     setPendingMfa({ ticket, factorId });
   };
 
+  const handleMfaFlowStarted = () => {
+    setMfaFlowStarted(true);
+  };
+
   // Handler to be passed to MFAVerificationScreen
   const handleMfaVerified = (session) => {
     setSession(session);
     setPendingMfa(null);
     setMfaVerified(true);
+    setMfaFlowStarted(false); // Reset MFA flow state
+    AsyncStorage.setItem('mfa_verified', 'true').then(() => {
+      console.log('[MFA] mfa_verified set to true in storage');
+    });
   };
 
   // If session exists and user requires MFA but hasn't verified, show MFA screen
@@ -283,25 +332,8 @@ function AppContent() {
     return unsubscribe;
   }, [showInfo]);
 
-  // Background/quit handler (must be outside component, but we log here for completeness)
-  useEffect(() => {
-    messaging().setBackgroundMessageHandler(async remoteMessage => {
-      console.log('[FCM] Background/quit notification received:', remoteMessage);
-
-      // // Show a local notification using expo-notifications
-      // await Notifications.scheduleNotificationAsync({
-      //   content: {
-      //     title: remoteMessage.notification?.title || 'Notification',
-      //     body: remoteMessage.notification?.body || '',
-      //     data: remoteMessage.data,
-      //   },
-      //   trigger: null, // Show immediately
-      // });
-    });
-  }, []);
-
-  if (loading) {
-    return <LoadingScreen />;
+  if (startupLoading) {
+    return <View style={{ flex: 1, backgroundColor: 'rgb(255,255,255)' }} />;
   }
 
   return (
@@ -318,8 +350,39 @@ function AppContent() {
           }
         }}
       >
+        {/* Debug logs for navigation state */}
+        {(() => {
+          //console.log('[NAV] session:', session);
+          console.log('[NAV] requiresMfa:', requiresMfa);
+          console.log('[NAV] mfaVerified:', mfaVerified);
+          console.log('[NAV] mfaFlowStarted:', mfaFlowStarted);
+          console.log('[NAV] pendingMfa:', pendingMfa);
+          if (pendingMfa) {
+            console.log('[NAV] Rendering: MFAVerificationScreen');
+          } else if (session && (!requiresMfa || mfaVerified) && !(mfaFlowStarted && !pendingMfa)) {
+            if (sessionType === 'recovery') {
+              console.log('[NAV] Rendering: ResetPasswordScreen (recovery)');
+            } else {
+              console.log('[NAV] Rendering: MainApp and other main screens');
+            }
+          } else {
+            console.log('[NAV] Rendering: Login and auth screens');
+          }
+          return null;
+        })()}
         {/* Centralized navigation logic for authentication and MFA */}
-        {pendingMfa ? (
+        {checkingMfa ? (
+          <Stack.Screen
+            name={NAV_LOGIN_SCREEN}
+            children={() => (
+              <LoginScreen
+                onPendingMfa={handlePendingMfa}
+                onMfaFlowStarted={handleMfaFlowStarted}
+                disableSignIn={true}
+              />
+            )}
+          />
+        ) : pendingMfa ? (
           <Stack.Screen
             name={NAV_MFA_VERIFICATION_SCREEN}
             children={() => (
@@ -330,7 +393,7 @@ function AppContent() {
               />
             )}
           />
-        ) : session && (!requiresMfa || mfaVerified) ? (
+        ) : session && (!requiresMfa || mfaVerified) && !(mfaFlowStarted && !pendingMfa) ? (
           sessionType === 'recovery' ? (
             <Stack.Screen name={NAV_RESET_PASSWORD_SCREEN} component={ResetPasswordScreen} />
           ) : (
@@ -346,7 +409,13 @@ function AppContent() {
           <>
             <Stack.Screen
               name={NAV_LOGIN_SCREEN}
-              children={() => <LoginScreen onPendingMfa={handlePendingMfa} />}
+              children={() => (
+                <LoginScreen
+                  onPendingMfa={handlePendingMfa}
+                  onMfaFlowStarted={handleMfaFlowStarted}
+                  disableSignIn={mfaFlowStarted && !pendingMfa}
+                />
+              )}
             />
             <Stack.Screen name={NAV_CREATE_ACCOUNT_SCREEN} component={CreateAccountScreen} />
             <Stack.Screen name={NAV_FORGOT_PASSWORD_SCREEN} component={ForgotPasswordScreen} />
@@ -372,13 +441,5 @@ export default function App() {
     <SnackbarProvider>
       <AppContent />
     </SnackbarProvider>
-  );
-}
-
-function LoadingScreen() {
-  return (
-    <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-      <Text>Loading...</Text>
-    </View>
   );
 }

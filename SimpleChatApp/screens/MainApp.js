@@ -4,14 +4,9 @@ import {
   FlatList,
   StyleSheet,
   TouchableOpacity,
-  AppState,
-  Platform,
-  Alert,
-  Button,
 } from "react-native";
 import Icon from "react-native-vector-icons/MaterialIcons";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
-import crashlytics from "@react-native-firebase/crashlytics";
 import * as Notifications from "expo-notifications";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import messaging from '@react-native-firebase/messaging';
@@ -30,7 +25,6 @@ import AddMensage from "../components/AddMessage";
 import SearchBar from "../components/SearchBar";
 import { supabase } from "../lib/supabase";
 import { useSnackbar } from "../contexts/SnackbarContext";
-import sendNotificationToUser from "../lib/notification";
 
 // Key for storing FCM tokens by user in AsyncStorage
 const FCM_TOKEN_KEY = 'fcm_tokens_by_user';
@@ -134,7 +128,7 @@ const getFcmTokenWithFirebase = async () => {
 };
 
 function MainApp() {
-  console.log('==== MainApp component rendered ====');
+  //console.log('==== MainApp component rendered ====');
   const [filter, setFilter] = useState("");
   const [userRole, setUserRole] = useState(null);
   const [channels, setChannels] = useState([]);
@@ -190,7 +184,7 @@ function MainApp() {
   }, [currentUserId, showError]);
 
   useEffect(() => {
-    console.log('==== MainApp useEffect running ====');
+   /* console.log('==== MainApp useEffect running ====');
     const logSessionAndUser = async () => {
       console.log('==== logSessionAndUser started ====');
       try {
@@ -211,7 +205,7 @@ function MainApp() {
         console.error(e);
       }
     };
-    logSessionAndUser();
+    logSessionAndUser();*/
     const fetchUserRole = async () => {
       const { data } = await supabase.auth.getUser();
       const user = data?.user;

@@ -16,3 +16,4 @@ local.properties
 *.jsbundle
 
 service-account.jsons
+keystore

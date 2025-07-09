@@ -56,6 +56,7 @@ function CreateAccountScreen() {
       if (error) throw error;
 
       showSuccess("Account created successfully! Please check your email for verification.");
+      navigation.navigate(NAV_LOGIN_SCREEN);
     } catch (error) {
       showError(error.message);
     } finally {
@@ -142,7 +143,7 @@ function CreateAccountScreen() {
       <NavigationLink
         text="Already have an account? "
         linkText="Sign in"
-        onPress={() => navigation.navigate(NAV_LOGIN_SCREEN)}
+        onPress={() => navigation.goBack()}
       />
     </ScreenContainer>
   );
