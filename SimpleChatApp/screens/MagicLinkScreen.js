@@ -34,10 +34,9 @@ function MagicLinkScreen() {
           emailRedirectTo: DEEPLINK_MAIN_APP,
         },
       });
-
       if (error) throw error;
-
       setMagicLinkSent(true);
+      navigation.goBack();
       showSuccess("Magic link sent! Check your email.");
     } catch (error) {
       showError(error.message);
@@ -77,7 +76,7 @@ function MagicLinkScreen() {
       />
       
       <BackToLoginButton 
-        onPress={() => navigation.navigate(NAV_LOGIN_SCREEN)}
+        onPress={() => navigation.goBack()}
       />
     </ScreenContainer>
   );

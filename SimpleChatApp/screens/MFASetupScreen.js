@@ -213,11 +213,6 @@ function MFASetupScreen() {
     <ScreenContainer>
       <IconHeader iconName="shield-checkmark" />
       <ScreenTitle title="Set Up Two-Factor Authentication" />
-      <Text style={styles.description}>
-        Add an extra layer of security to your account by setting up two-factor
-        authentication.
-      </Text>
-
       {secret ? (
         <View style={styles.setupContainer}>
           <Text style={styles.setupTitle}>

@@ -1,0 +1,5 @@
+echo "Committing Build and Name Versions"
+git config --global user.email "actions@github.com"
+git config --global user.name "Git Actions"
+git tag -a "v$appVersion.$appBuild" -m "version v$appVersion.($appBuild)"
+git push origin "v$appVersion.$appBuild"

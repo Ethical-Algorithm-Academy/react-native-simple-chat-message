@@ -7,14 +7,12 @@ import ScreenTitle from "../components/ScreenTitle";
 import { useNavigation } from "@react-navigation/native";
 import { NAV_MFA_SETUP_SCREEN } from "../constants/navigation";
 import { RFValue } from "react-native-responsive-fontsize";
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getFcmTokenForUser } from "./MainApp";
-import { CommonActions } from '@react-navigation/native';
-import { NAV_LOGIN_SCREEN } from "../constants/navigation";
 
 const ConfigurationsScreen = () => {
   const navigation = useNavigation();
   const [isMfaEnabled, setIsMfaEnabled] = React.useState(false);
+  const [mfaFactorId, setMfaFactorId] = React.useState(null); // Store factor id
   const [loading, setLoading] = React.useState(false);
   const { showSuccess, showError } = require('../contexts/SnackbarContext').useSnackbar();
 
@@ -23,8 +21,12 @@ const ConfigurationsScreen = () => {
       const { data: factors, error } = await supabase.auth.mfa.listFactors();
       if (factors?.totp?.some(factor => factor.status === "verified")) {
         setIsMfaEnabled(true);
+        // Store the first verified factor id
+        const verifiedFactor = factors.totp.find(factor => factor.status === "verified");
+        setMfaFactorId(verifiedFactor?.id || null);
       } else {
         setIsMfaEnabled(false);
+        setMfaFactorId(null);
       }
     };
     checkMfa();
@@ -32,8 +34,6 @@ const ConfigurationsScreen = () => {
 
   const handleLogout = async () => {
     setLoading(true);
-    console.log('[Logout] Logout button pressed');
-    console.log('[ConfigurationsScreen] supabase instance:', supabase);
     try {
       // Get current user ID
       const { data } = await supabase.auth.getUser();
@@ -56,16 +56,13 @@ const ConfigurationsScreen = () => {
           }
         }
       }
-      console.log('[Logout] About to call supabase.auth.signOut');
       
       const { error } = await supabase.auth.signOut();
       const { data: sessionData } = await supabase.auth.getSession();
-      console.log('[Logout] Session after signOut:', sessionData);
       if (error) {
         console.error('[Logout] signOut error:', error);
         showError('Logout failed: ' + error.message);
       } else {
-        console.log('[Logout] signOut successful');
         showSuccess('Logged out successfully!');
         // Navigation reset removed; App.js will handle navigation based on session state
       }
@@ -81,6 +78,25 @@ const ConfigurationsScreen = () => {
     navigation.navigate(NAV_MFA_SETUP_SCREEN);
   };
 
+  const handleDeactivateMFA = async () => {
+    if (!mfaFactorId) return;
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.mfa.unenroll({ factorId: mfaFactorId });
+      if (error) {
+        showError('Failed to deactivate MFA: ' + error.message);
+      } else {
+        showSuccess('MFA deactivated successfully!');
+        setIsMfaEnabled(false);
+        setMfaFactorId(null);
+      }
+    } catch (e) {
+      showError('Failed to deactivate MFA: ' + (e.message || e));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleBack = () => {
     navigation.goBack();
   };
@@ -89,14 +105,24 @@ const ConfigurationsScreen = () => {
     <ScreenContainer>
       <ScreenTitle>Configurations</ScreenTitle>
       <View style={styles.buttonContainer}>
-        {/* Button Disabled if MFA Setup is already set */}
-        <PrimaryButton
-          onPress={handleMFASetup}
-          style={styles.button}
-          iconName="key-outline"
-          title="MFA Setup"
-          isDisabled={isMfaEnabled}
-        />
+        {/* MFA Setup or Deactivate MFA Button */}
+        {isMfaEnabled ? (
+          <PrimaryButton
+            onPress={handleDeactivateMFA}
+            style={styles.button}
+            iconName="key-outline"
+            title={loading ? "Deactivating MFA..." : "Deactivate MFA"}
+            isDisabled={loading}
+          />
+        ) : (
+          <PrimaryButton
+            onPress={handleMFASetup}
+            style={styles.button}
+            iconName="key-outline"
+            title="MFA Setup"
+            isDisabled={loading}
+          />
+        )}
         <PrimaryButton
           onPress={handleLogout}
           style={styles.button}

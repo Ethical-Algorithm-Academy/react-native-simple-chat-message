@@ -1,4 +1,3 @@
-.scripts
-node_modules
 todolist.txt
 .env
+.DS_Store
