@@ -6,6 +6,10 @@ on:
       - feature-auth-system
   workflow_dispatch:
 
+permissions:
+  contents: write
+  packages: write
+
 env:
   keystoreFile: ${{ secrets.ANDROID_KEYSTORE }}
   password: ${{ secrets.ANDROID_PASSWORD }}
