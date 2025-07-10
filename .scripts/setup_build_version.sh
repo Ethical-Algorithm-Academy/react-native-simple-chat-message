@@ -9,7 +9,7 @@ getProperty(){
 
 echo "Increase build and version Number"
 
-file="./android/gradle.properties"
+file="./SimpleChatApp/android/gradle.properties"
 if [ -f "$file" ]; then
   echo "$file found."
 

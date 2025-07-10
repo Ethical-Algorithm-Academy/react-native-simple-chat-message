@@ -1,42 +1,51 @@
+import React from "react";
 import { View, TextInput, Pressable, StyleSheet } from "react-native";
 import { RFValue } from "react-native-responsive-fontsize";
 import { Ionicons } from "@expo/vector-icons";
 
-function PasswordInput({
-  showPassword,
-  onPress,
-  secureTextEntry,
-  placeholder,
-  value,
-  onChangeText,
-}) {
-  return (
-    <View style={styles.passwordContainer}>
-      <TextInput
-        style={styles.passwordInput}
-        placeholder={placeholder}
-        placeholderTextColor="rgb(43, 43, 43)"
-        secureTextEntry={secureTextEntry}
-        value={value}
-        onChangeText={onChangeText}
-        autoCapitalize="none"
-        autoCorrect={false}
-        textContentType="password"
-      />
-      <Pressable
-        style={styles.eyeIcon}
-        onPress={onPress}
-        hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
-      >
-        <Ionicons
-          name={showPassword ? "eye-off-outline" : "eye-outline"}
-          size={RFValue(20)}
-          color="#333"
+const PasswordInput = React.forwardRef(
+  (
+    {
+      showPassword,
+      onPress,
+      secureTextEntry,
+      placeholder,
+      value,
+      onChangeText,
+      ...props
+    },
+    ref
+  ) => {
+    return (
+      <View style={styles.passwordContainer}>
+        <TextInput
+          ref={ref}
+          style={styles.passwordInput}
+          placeholder={placeholder}
+          placeholderTextColor="rgb(43, 43, 43)"
+          secureTextEntry={secureTextEntry}
+          value={value}
+          onChangeText={onChangeText}
+          autoCapitalize="none"
+          autoCorrect={false}
+          textContentType="password"
+          {...props}
         />
-      </Pressable>
-    </View>
-  );
-}
+        <Pressable
+          style={styles.eyeIcon}
+          onPress={onPress}
+          hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+        >
+          <Ionicons
+            name={showPassword ? "eye-off-outline" : "eye-outline"}
+            size={RFValue(20)}
+            color="#333"
+          />
+        </Pressable>
+      </View>
+    );
+  }
+);
 
 const styles = StyleSheet.create({
   passwordContainer: {

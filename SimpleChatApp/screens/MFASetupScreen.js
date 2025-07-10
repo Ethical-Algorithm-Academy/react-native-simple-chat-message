@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { View, Text, StyleSheet, Pressable } from "react-native";
+import { View, Text, StyleSheet, Pressable, KeyboardAvoidingView, ScrollView, Platform } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { RFValue } from "react-native-responsive-fontsize";
 import { supabase } from "../lib/supabase";
@@ -208,65 +208,77 @@ function MFASetupScreen() {
   if (setupLoading) {
     return <LoadingScreen text="Setting up MFA..." />;
   }
-
   return (
-    <ScreenContainer>
-      <IconHeader iconName="shield-checkmark" />
-      <ScreenTitle title="Set Up Two-Factor Authentication" />
-      {secret ? (
-        <View style={styles.setupContainer}>
-          <Text style={styles.setupTitle}>
-            Step 1: Add to Authenticator App
-          </Text>
-          <Text style={styles.setupDescription}>
-            Open your authenticator app (Google Authenticator, Authy, etc.) and
-            add a new account using the code below:
-          </Text>
-          <Pressable
-            style={[styles.secretText, copied && styles.secretTextCopied]}
-            onPress={copyToClipboard}
-          >
-            <Text style={styles.secretTextContent}>{secret}</Text>
-            <Text style={styles.copyHint}>
-              {copied ? "Copied!" : "Tap to copy"}
-            </Text>
-          </Pressable>
-          <Text style={styles.setupNote}>
-            After adding the code to your app, you'll see a 6-digit code. Enter
-            it below to complete setup.
-          </Text>
-        </View>
-      ) : (
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>Failed to generate MFA setup</Text>
-          <PrimaryButton
-            title="Retry Setup"
-            onPress={checkOrSetupFactor}
-            style={styles.retryButton}
-            iconName="refresh-outline"
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
+      <ScrollView
+        contentContainerStyle={{ flexGrow: 1 }}
+        keyboardShouldPersistTaps="handled"
+      >
+        <ScreenContainer>
+          <IconHeader iconName="shield-checkmark" />
+          <ScreenTitle title="Set Up Two-Factor Authentication" />
+          {secret ? (
+            <View style={styles.setupContainer}>
+              <Text style={styles.setupTitle}>
+                Step 1: Add to Authenticator App
+              </Text>
+              <Text style={styles.setupDescription}>
+                Open your authenticator app (Google Authenticator, Authy, etc.) and
+                add a new account using the code below:
+              </Text>
+              <Pressable
+                style={[styles.secretText, copied && styles.secretTextCopied]}
+                onPress={copyToClipboard}
+              >
+                <Text style={styles.secretTextContent}>{secret}</Text>
+                <Text style={styles.copyHint}>
+                  {copied ? "Copied!" : "Tap to copy"}
+                </Text>
+              </Pressable>
+              <Text style={styles.setupNote}>
+                After adding the code to your app, you'll see a 6-digit code. Enter
+                it below to complete setup.
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorText}>Failed to generate MFA setup</Text>
+              <PrimaryButton
+                title="Retry Setup"
+                onPress={checkOrSetupFactor}
+                style={styles.retryButton}
+                iconName="refresh-outline"
+              />
+            </View>
+          )}
+
+          <FormLabel>Verification Code</FormLabel>
+          <TextInput
+            placeholder="Enter 6-digit code from your app"
+            value={verificationCode}
+            onChangeText={setVerificationCode}
+            keyboardType="numeric"
+            maxLength={6}
+            autoFocus
+            returnKeyType="done"
+            onSubmitEditing={verifyMFA}
           />
-        </View>
-      )}
 
-      <FormLabel>Verification Code</FormLabel>
-      <TextInput
-        placeholder="Enter 6-digit code from your app"
-        value={verificationCode}
-        onChangeText={setVerificationCode}
-        keyboardType="numeric"
-        maxLength={6}
-      />
+          <PrimaryButton
+            title="Verify and Complete Setup"
+            onPress={verifyMFA}
+            isLoading={loading}
+            isDisabled={!verificationCode.trim() || setupLoading}
+            iconName="checkmark-done-outline"
+          />
 
-      <PrimaryButton
-        title="Verify and Complete Setup"
-        onPress={verifyMFA}
-        isLoading={loading}
-        isDisabled={!verificationCode.trim() || setupLoading}
-        iconName="checkmark-done-outline"
-      />
-
-      <BackToLoginButton onPress={handleBackToMain} text="Back to Main App" />
-    </ScreenContainer>
+          <BackToLoginButton onPress={handleBackToMain} text="Back to Main App" />
+        </ScreenContainer>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 

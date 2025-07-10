@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { KeyboardAvoidingView, ScrollView, Platform } from 'react-native';
 import { useNavigation } from "@react-navigation/native";
 import { supabase } from '../lib/supabase';
 import { useSnackbar } from "../contexts/SnackbarContext";
@@ -22,6 +23,8 @@ function ResetPasswordScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState(null);
+  const passwordInputRef = useRef(null);
+  const confirmPasswordInputRef = useRef(null);
 
   useEffect(() => {
     // Get current user
@@ -91,43 +94,60 @@ function ResetPasswordScreen() {
   }
 
   return (
-    <ScreenContainer>
-      <IconHeader iconName="lock-open-outline" />
-      
-      <ScreenTitle 
-        title="Reset your password"
-        subtitle="Enter your new password below"
-      />
-      
-      <FormLabel>New Password</FormLabel>
-      <PasswordInput
-        showPassword={showPassword}
-        onPress={() => setShowPassword(!showPassword)}
-        secureTextEntry={!showPassword}
-        placeholder="Enter your new password"
-        value={password}
-        onChangeText={setPassword}
-      />
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
+      <ScrollView
+        contentContainerStyle={{ flexGrow: 1 }}
+        keyboardShouldPersistTaps="handled"
+      >
+        <ScreenContainer>
+          <IconHeader iconName="lock-open-outline" />
+          
+          <ScreenTitle 
+            title="Reset your password"
+            subtitle="Enter your new password below"
+          />
+          
+          <FormLabel>New Password</FormLabel>
+          <PasswordInput
+            ref={passwordInputRef}
+            showPassword={showPassword}
+            onPress={() => setShowPassword(!showPassword)}
+            secureTextEntry={!showPassword}
+            placeholder="Enter your new password"
+            value={password}
+            onChangeText={setPassword}
+            returnKeyType="next"
+            onSubmitEditing={() => confirmPasswordInputRef.current?.focus()}
+            blurOnSubmit={false}
+          />
 
-      <FormLabel>Confirm New Password</FormLabel>
-      <PasswordInput
-        showPassword={showConfirmPassword}
-        onPress={() => setShowConfirmPassword(!showConfirmPassword)}
-        secureTextEntry={!showConfirmPassword}
-        placeholder="Confirm your new password"
-        value={confirmPassword}
-        onChangeText={setConfirmPassword}
-      />
-      
-      <PrimaryButton
-        iconName="checkmark-outline"
-        title={loading ? 'Updating...' : 'Update Password'}
-        onPress={handleResetPassword}
-        loading={loading}
-      />
-      
-      <BackToLoginButton onPress={handleBackToLogin} />
-    </ScreenContainer>
+          <FormLabel>Confirm New Password</FormLabel>
+          <PasswordInput
+            ref={confirmPasswordInputRef}
+            showPassword={showConfirmPassword}
+            onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+            secureTextEntry={!showConfirmPassword}
+            placeholder="Confirm your new password"
+            value={confirmPassword}
+            onChangeText={setConfirmPassword}
+            returnKeyType="done"
+            onSubmitEditing={handleResetPassword}
+          />
+          
+          <PrimaryButton
+            iconName="checkmark-outline"
+            title={loading ? 'Updating...' : 'Update Password'}
+            onPress={handleResetPassword}
+            loading={loading}
+          />
+          
+          <BackToLoginButton onPress={handleBackToLogin} />
+        </ScreenContainer>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 

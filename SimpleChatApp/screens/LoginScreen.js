@@ -1,5 +1,5 @@
-import { View, Text, StyleSheet, Pressable, Image } from "react-native";
-import { useState, useEffect } from "react";
+import { View, Text, StyleSheet, Pressable, Image, KeyboardAvoidingView, ScrollView, Platform } from "react-native";
+import { useState, useEffect, useRef } from "react";
 import { RFValue } from "react-native-responsive-fontsize";
 import { useNavigation } from "@react-navigation/native";
 import { supabase } from "../lib/supabase";
@@ -31,6 +31,7 @@ function LoginScreen({ onPendingMfa, onMfaFlowStarted, disableSignIn }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const passwordInputRef = useRef(null);
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -85,68 +86,84 @@ function LoginScreen({ onPendingMfa, onMfaFlowStarted, disableSignIn }) {
   };
 
   return (
-    <ScreenContainer>
-      <IconHeader image={require("../assets/images/luis.png")} />
-      
-      <ScreenTitle 
-        title="Welcome Back"
-        subtitle="Enter your credentials to access your account"
-      />
-      
-      <FormLabel>Email</FormLabel>
-      <TextInput
-        placeholder="john@example.com"
-        value={email}
-        onChangeText={setEmail}
-        keyboardType="email-address"
-      />
-      
-      <View style={styles.passwordContainer}>
-        <FormLabel>Password</FormLabel>
-        <Pressable onPress={() => navigation.navigate(NAV_FORGOT_PASSWORD_SCREEN)}>
-          <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
-        </Pressable>
-      </View>
-      
-      <PasswordInput
-        showPassword={showPassword}
-        onPress={() => setShowPassword(!showPassword)}
-        secureTextEntry={!showPassword}
-        placeholder="Enter your password"
-        value={password}
-        onChangeText={setPassword}
-      />
-      
-      <PrimaryButton
-        iconName="log-in-outline"
-        title={loading ? "Signing in..." : "Sign in"}
-        onPress={handleLogin}
-        loading={loading}
-        disabled={disableSignIn}
-      />
-      
-      <SecondaryButton
-        iconName="mail-outline"
-        title="Send magic link instead"
-        onPress={() => navigation.navigate(NAV_MAGIC_LINK_SCREEN)}
-        style={styles.magicLinkButton}
-      />
-      
-      <Divider text="OR CONTINUE WITH" />
-      
-      <SecondaryButton
-        iconName="logo-google"
-        title={loading ? 'Signing in...' : 'Sign in with Google'}
-        onPress={handleGoogleSignIn}
-        loading={loading}
-      />
-      
-      <NavigationLink
-        text="Don't have an account? "
-        linkText="Sign up"
-        onPress={() => navigation.navigate(NAV_CREATE_ACCOUNT_SCREEN)}
-      />
-    </ScreenContainer>
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
+      <ScrollView
+        contentContainerStyle={{ flexGrow: 1 }}
+        keyboardShouldPersistTaps="handled"
+      >
+        <ScreenContainer>
+          <IconHeader image={require("../assets/images/luis.png")} />
+          
+          <ScreenTitle 
+            title="Welcome Back"
+            subtitle="Enter your credentials to access your account"
+          />
+          
+          <FormLabel>Email</FormLabel>
+          <TextInput
+            placeholder="john@example.com"
+            value={email}
+            onChangeText={setEmail}
+            keyboardType="email-address"
+            returnKeyType="next"
+            onSubmitEditing={() => passwordInputRef.current?.focus()}
+            blurOnSubmit={false}
+          />
+          
+          <View style={styles.passwordContainer}>
+            <FormLabel>Password</FormLabel>
+            <Pressable onPress={() => navigation.navigate(NAV_FORGOT_PASSWORD_SCREEN)}>
+              <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+            </Pressable>
+          </View>
+          
+          <PasswordInput
+            ref={passwordInputRef}
+            showPassword={showPassword}
+            onPress={() => setShowPassword(!showPassword)}
+            secureTextEntry={!showPassword}
+            placeholder="Enter your password"
+            value={password}
+            onChangeText={setPassword}
+            returnKeyType="done"
+            onSubmitEditing={handleLogin}
+          />
+          
+          <PrimaryButton
+            iconName="log-in-outline"
+            title={loading ? "Signing in..." : "Sign in"}
+            onPress={handleLogin}
+            loading={loading}
+            disabled={disableSignIn}
+          />
+          
+          <SecondaryButton
+            iconName="mail-outline"
+            title="Send magic link instead"
+            onPress={() => navigation.navigate(NAV_MAGIC_LINK_SCREEN)}
+            style={styles.magicLinkButton}
+          />
+          
+          <Divider text="OR CONTINUE WITH" />
+          
+          <SecondaryButton
+            iconName="logo-google"
+            title={loading ? 'Signing in...' : 'Sign in with Google'}
+            onPress={handleGoogleSignIn}
+            loading={loading}
+          />
+          
+          <NavigationLink
+            text="Don't have an account? "
+            linkText="Sign up"
+            onPress={() => navigation.navigate(NAV_CREATE_ACCOUNT_SCREEN)}
+          />
+        </ScreenContainer>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
