@@ -48,26 +48,6 @@ export const getFcmTokenForUser = async (userId) => {
   return tokens[userId];
 };
 
-// Remove token for a user from Supabase (but keep in AsyncStorage)
-const removeFcmTokenFromSupabase = async (userId) => {
-  const token = await getFcmTokenForUser(userId);
-  if (!token) return;
-  const { data: user, error } = await supabase
-    .from('users')
-    .select('fcm_tokens')
-    .eq('id', userId)
-    .single();
-  if (!error && user) {
-    const tokens = (user.fcm_tokens || []).filter(t => t !== token);
-    const { error: updateError } = await supabase
-      .from('users')
-      .update({ fcm_tokens: tokens })
-      .eq('id', userId);
-    if (updateError) {
-    }
-  }
-};
-
 // Add token for a user to Supabase array if not present
 const addFcmTokenToSupabase = async (userId, token) => {
   const { data: user, error } = await supabase
@@ -91,7 +71,6 @@ const addFcmTokenToSupabase = async (userId, token) => {
       } else {
       }
     }
-  } else {
   }
 };
 
@@ -184,28 +163,6 @@ function MainApp() {
   }, [currentUserId, showError]);
 
   useEffect(() => {
-   /* console.log('==== MainApp useEffect running ====');
-    const logSessionAndUser = async () => {
-      console.log('==== logSessionAndUser started ====');
-      try {
-        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-        console.log('==== got sessionData ====');
-        const { data: userData, error: userError } = await supabase.auth.getUser();
-        console.log('==== got userData ====');
-        console.log('================ MAIN APP SESSION DEBUG ================');
-        console.log('Session:', sessionData);
-        console.log('Session Error:', sessionError);
-        console.log('User:', userData?.user);
-        console.log('User Error:', userError);
-        console.log('Supabase Authenticated:', !!sessionData?.session?.access_token);
-        console.log('========================================================');
-        console.log('==== logSessionAndUser finished ====');
-      } catch (e) {
-        console.log('==== ERROR in logSessionAndUser ====');
-        console.error(e);
-      }
-    };
-    logSessionAndUser();*/
     const fetchUserRole = async () => {
       const { data } = await supabase.auth.getUser();
       const user = data?.user;
@@ -412,11 +369,6 @@ function MainApp() {
       handleLoginFcmToken(currentUserId);
     }
   }, [currentUserId, handleLoginFcmToken]);
-
-  // You should call handleLogoutFcmToken(currentUserId) in your logout logic
-  // For example, in your logout function:
-  // await handleLogoutFcmToken(currentUserId);
-  // ...then clear user session/state
 
   useEffect(() => {
     const unsubscribe = messaging().onTokenRefresh(async (newToken) => {
