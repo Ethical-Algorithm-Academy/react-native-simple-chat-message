@@ -30,11 +30,9 @@ export default function MFAVerificationScreen({ challengeId, factorId, onVerifie
         if (onVerified) {
           if (data?.session) {
             onVerified(data.session);
-            console.log("onverified session1");
           } else {
             const { data: sessionData } = await supabase.auth.getSession();
             onVerified(sessionData.session);
-            console.log("onverified session2");
           }
         }
       }
