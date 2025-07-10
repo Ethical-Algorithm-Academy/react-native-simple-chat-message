@@ -422,6 +422,65 @@ function MainApp() {
           onPress={() => navigation.navigate(NAV_ADDMESSAGE_SCREEN)}
         />
       )}
+      {/* Regular user: show AddMessage only if no channels */}
+      {userRole && userRole !== "admin" && userRole !== "manager" && channels.length === 0 && (
+        <AddMensage
+          onPress={async () => {
+            try {
+              // Fetch all managers
+              const { data: managers, error: managerError } = await supabase
+                .from('users')
+                .select('id, name')
+                .eq('role', 'manager');
+              if (managerError || !managers || managers.length === 0) {
+                showError('No managers available.');
+                return;
+              }
+              // Pick a random manager
+              const randomManager = managers[Math.floor(Math.random() * managers.length)];
+              if (!randomManager) {
+                showError('No manager found.');
+                return;
+              }
+              // Create a random channel name
+              const getRandomChannelName = () => {
+                const adjectives = ["Cool", "Fun", "Secret", "Chill", "Epic", "Quick", "Smart", "Happy"];
+                const nouns = ["Group", "Squad", "Team", "Chat", "Room", "Circle", "Crew", "Club"];
+                const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
+                const noun = nouns[Math.floor(Math.random() * nouns.length)];
+                return `${adj} ${noun}`;
+              };
+              const channelName = getRandomChannelName();
+              // Create the channel
+              const { data: channel, error: channelError } = await supabase
+                .from('channels')
+                .insert([{ name: channelName, type: 'individual' }])
+                .select()
+                .single();
+              if (channelError || !channel) {
+                showError('Error creating channel: ' + (channelError?.message || 'Unknown error'));
+                return;
+              }
+              // Add both users to user_channels
+              const userChannelRows = [
+                { user_id: currentUserId, channel_id: channel.id },
+                { user_id: randomManager.id, channel_id: channel.id },
+              ];
+              const { error: userChannelsError } = await supabase
+                .from('user_channels')
+                .insert(userChannelRows);
+              if (userChannelsError) {
+                showError('Error adding users to channel: ' + userChannelsError.message);
+                return;
+              }
+              showSuccess(`Channel with manager '${randomManager.name}' created!`);
+              navigation.navigate(NAV_MESSAGEDETAILS_SCREEN, { channelId: channel.id });
+            } catch (e) {
+              showError('Unexpected error creating channel.');
+            }
+          }}
+        />
+      )}
     </ScreenContainer>
   );
 }
