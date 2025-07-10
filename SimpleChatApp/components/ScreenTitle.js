@@ -27,11 +27,11 @@ const styles = StyleSheet.create({
   title: {
     fontSize: RFValue(24),
     fontWeight: "bold",
-    marginBottom: RFValue(6),
+    marginBottom: RFValue(4),
   },
   subtitle: {
     fontSize: RFValue(14),
-    marginBottom: RFValue(20),
+    marginBottom: RFValue(16),
     color: "#666",
   },
 });

@@ -30,8 +30,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#d9d9d9",
     borderRadius: RFValue(8),
-    padding: RFValue(12),
-    marginBottom: RFValue(12),
+    padding: RFValue(10),
+    marginBottom: RFValue(10),
   },
 });
 

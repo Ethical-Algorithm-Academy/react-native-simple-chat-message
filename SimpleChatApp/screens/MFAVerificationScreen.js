@@ -61,6 +61,8 @@ export default function MFAVerificationScreen({ challengeId, factorId, onVerifie
         maxLength={6}
         autoFocus
         editable={!loading}
+        returnKeyType="done"
+        onSubmitEditing={handleVerify}
       />
       
       <PrimaryButton

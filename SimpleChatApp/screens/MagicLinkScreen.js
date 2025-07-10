@@ -60,6 +60,8 @@ function MagicLinkScreen() {
         value={email}
         onChangeText={setEmail}
         keyboardType="email-address"
+        returnKeyType="done"
+        onSubmitEditing={handleSendMagicLink}
       />
       
       <PrimaryButton
