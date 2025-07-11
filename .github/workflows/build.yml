@@ -17,6 +17,8 @@ env:
   appVersion: ${{ vars.APP_VERSION }}
   appBuild: ${{ github.run_number }}
   SERVICE_ACCOUNT: ${{ secrets.SERVICE_ACCOUNT }}
+  EXPO_PUBLIC_SUPABASE_URL: ${{ vars.EXPO_PUBLIC_SUPABASE_URL }}
+  EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
 
 jobs:
   android-build:
@@ -35,6 +37,9 @@ jobs:
           java-version: "17"
       - name: Install dependencies
         run: npm install
+        working-directory: SimpleChatApp
+      - name: Create .env file
+        run: bash ./.scripts/create_env.sh
         working-directory: SimpleChatApp
       - name: Setup Keystore
         run: bash ./.scripts/setup_keystore_config.sh
@@ -61,8 +66,14 @@ jobs:
           tag: "v${{ env.appVersion }}.${{ env.appBuild }}"
           body: ${{ steps.changelog.outputs.changes }}
           token: ${{ secrets.GITHUB_TOKEN}}
+      - name: Write a ChangeLog
+        run: bash ./.scripts/update_changelog.sh ${{ steps.changelog.outputs.changes }}
+      - name: Build Android Release
+        run: ./gradlew :app:assembleRelease
+        working-directory: SimpleChatApp/android
       - name: Publish Demo App in app distribution
-        run: cd SimpleChatApp/android && ./gradlew appDistributionUploadRelease
+        run: ./gradlew appDistributionUploadRelease
+        working-directory: SimpleChatApp/android
       - name: Remove credentials file
         if: success() || failure()
         run: |
