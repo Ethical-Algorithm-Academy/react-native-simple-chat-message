@@ -44,8 +44,6 @@ jobs:
         run: bash ./.scripts/decode_service_account.sh
       - name: Setup App Version and Build numbers
         run: bash ./.scripts/setup_build_version.sh
-      - name: Build Android Release
-        run: cd SimpleChatApp/android && ./gradlew assembleRelease
       - name: Create Tag and Add to GitHub
         run: bash ./.scripts/setup_add_tag.sh
       - name: Generate CHANGELOG
