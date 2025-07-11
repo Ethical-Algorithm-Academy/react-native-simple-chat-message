@@ -67,7 +67,9 @@ jobs:
           body: ${{ steps.changelog.outputs.changes }}
           token: ${{ secrets.GITHUB_TOKEN}}
       - name: Write a ChangeLog
-        run: bash ./../../.scripts/update_changelog.sh ${{ steps.changelog.outputs.changes }}
+        run: |
+          echo "${{ steps.changelog.outputs.changes }}" > changelog_content.txt
+          bash ./../../.scripts/update_changelog.sh "$(cat changelog_content.txt)"
         working-directory: SimpleChatApp/android
       - name: Build Android Release
         run: ./gradlew :app:assembleRelease
