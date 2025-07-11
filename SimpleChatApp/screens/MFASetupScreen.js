@@ -262,7 +262,6 @@ function MFASetupScreen() {
             onChangeText={setVerificationCode}
             keyboardType="numeric"
             maxLength={6}
-            autoFocus
             returnKeyType="done"
             onSubmitEditing={verifyMFA}
           />

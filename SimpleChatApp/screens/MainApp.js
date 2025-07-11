@@ -146,7 +146,7 @@ function MainApp() {
         created_at,
         user_channels(user_id, users(id, name)),
         messages:messages!messages_channel_id_fkey(
-          id, content, sent_at, user_id, seen
+          id, content, sent_at, user_id, seen, file_url, file_type, file_name
         )
       `
       )
@@ -264,6 +264,7 @@ function MainApp() {
 
     // Get the last message sent
     const lastMessage = item.messages?.[0] ?? null;
+    console.log("[DEBUG] renderItem lastMessage:", lastMessage);
     let numbernewmessages = 0;
 
     // Calculate number of unseen messages for the current user, limit to 100 (99+)
@@ -297,21 +298,26 @@ function MainApp() {
     let previewText = lastMessage
       ? lastMessage.content
       : "This channel is empty";
+    let previewIcon = null;
+
     if (
       lastMessage &&
       (!lastMessage.content || lastMessage.content.trim() === "") &&
-      lastMessage.file_type
+      (lastMessage.file_url || lastMessage.file_name || lastMessage.file_type)
     ) {
-      if (lastMessage.file_type.startsWith("image/")) {
-        previewTitle = "(Image)";
-        previewText = "(Image)";
-      } else if (lastMessage.file_type.startsWith("video/")) {
-        previewTitle = "(Video)";
-        previewText = "(Video)";
-      } else {
-        previewTitle = "(File)";
-        previewText = "(File)";
+      let fileLabel = "File";
+      let iconName = "attach";
+      if (lastMessage.file_type) {
+        if (lastMessage.file_type.startsWith("image/")) {
+          fileLabel = "Image";
+          iconName = "image";
+        } else if (lastMessage.file_type.startsWith("video/")) {
+          fileLabel = "Video";
+          iconName = "videocam";
+        }
       }
+      previewText = fileLabel;
+      previewIcon = iconName;
     }
 
     // Sends the values
@@ -325,6 +331,7 @@ function MainApp() {
       sender,
       seen: lastMessage?.seen ?? false,
       numbernewmessages,
+      icon: previewIcon, // pass icon name to MessageBubble
     };
     
     return (
