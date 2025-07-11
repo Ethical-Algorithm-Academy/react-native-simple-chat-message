@@ -70,7 +70,7 @@ function AppContent() {
     // Only enforce MFA for email/password logins (not Google or magic link)
     if (user.app_metadata?.provider !== 'email' || sessionType === 'magic') {
       setRequiresMfa(false);
-      setMfaVerified(false);S
+      setMfaVerified(false);
       setCheckingMfa(false); // Done checking MFA
       return;
     }

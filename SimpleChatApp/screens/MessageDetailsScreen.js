@@ -19,9 +19,8 @@ import {
   ActivityIndicator,
   Keyboard,
 } from "react-native";
-import { useRoute, useNavigation } from "@react-navigation/native";
+import { useRoute, useNavigation, useFocusEffect } from "@react-navigation/native";
 import { RFValue } from "react-native-responsive-fontsize";
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import * as DocumentPicker from "expo-document-picker";
 import { Ionicons } from "@expo/vector-icons";
@@ -36,6 +35,7 @@ import { groupMessagesWithSections } from "../lib/chatUtils";
 import { uploadFileToSupabase, MAX_FILE_SIZE } from "../lib/fileUpload";
 import { useSnackbar } from '../contexts/SnackbarContext';
 import sendNotificationToUser from '../lib/notification';
+
 
 function MessageDetails() {
   const route = useRoute();
@@ -58,7 +58,6 @@ function MessageDetails() {
   const [modalVideoUrl, setModalVideoUrl] = useState(null);
   const { showError, showWarning, showInfo } = useSnackbar();
   const [currentUserName, setCurrentUserName] = useState("");
-  const insets = useSafeAreaInsets();
   const [keyboardDismissedCount, setKeyboardDismissedCount] = useState(0);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
@@ -76,14 +75,13 @@ function MessageDetails() {
     }
   }, [channelId]);
 
-  useEffect(() => {
+  useFocusEffect(() => {
     const fetchChannel = async () => {
       const { data: userData } = await supabase.auth.getUser();
       const userId = userData?.user?.id;
       setCurrentUserId(userId);
       console.log("Set currentUserId:", userId);
       // Fetch current user's name
-      let userName = "";
       if (userId) {
         const { data: userRow, error: userError } = await supabase
           .from("users")
@@ -459,7 +457,7 @@ function MessageDetails() {
       </View>
 
       {/* FOOTER / INPUT */}
-      <View style={[styles.inputContainerWrapper, { paddingBottom: insets.bottom + keyboardHeight }]}>
+      <View style={[styles.inputContainerWrapper, { paddingBottom: keyboardHeight + RFValue(4) }]}>
         {/* Force re-render on keyboard dismiss */}
         {(() => { console.log('Footer rendered', keyboardDismissedCount, keyboardHeight, isKeyboardVisible); return null; })()}
         <View style={{ display: 'none' }}>{keyboardDismissedCount}</View>
