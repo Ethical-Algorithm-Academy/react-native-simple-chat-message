@@ -5,7 +5,6 @@ import {
   useCallback,
   useMemo,
   React,
-  Platform,
 } from "react";
 import {
   View,
@@ -13,7 +12,6 @@ import {
   StyleSheet,
   TextInput,
   Pressable,
-  KeyboardAvoidingView,
   FlatList,
   Image,
   Modal,
@@ -58,10 +56,12 @@ function MessageDetails() {
   const [modalImageUrl, setModalImageUrl] = useState(null);
   const [videoModalVisible, setVideoModalVisible] = useState(false);
   const [modalVideoUrl, setModalVideoUrl] = useState(null);
-  const { showError, showWarning, showSuccess, showInfo } = useSnackbar();
+  const { showError, showWarning, showInfo } = useSnackbar();
   const [currentUserName, setCurrentUserName] = useState("");
   const insets = useSafeAreaInsets();
   const [keyboardDismissedCount, setKeyboardDismissedCount] = useState(0);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
 
   const fetchMessages = useCallback(async () => {
     const { data, error } = await supabase
@@ -159,12 +159,21 @@ function MessageDetails() {
   }, [currentUserId]);
 
   useEffect(() => {
-    const onKeyboardDidHide = () => {
-      console.log('[Keyboard] Keyboard dismissed');
-      setKeyboardDismissedCount((count) => count + 1); // force re-render
+    const onKeyboardDidShow = (e) => {
+      setKeyboardHeight(e.endCoordinates.height);
+      setIsKeyboardVisible(true);
+      console.log('[Keyboard] Keyboard shown, height:', e.endCoordinates.height);
     };
+    const onKeyboardDidHide = () => {
+      setKeyboardHeight(0);
+      setIsKeyboardVisible(false);
+      setKeyboardDismissedCount((count) => count + 1); // force re-render
+      console.log('[Keyboard] Keyboard dismissed');
+    };
+    const showSubscription = Keyboard.addListener('keyboardDidShow', onKeyboardDidShow);
     const hideSubscription = Keyboard.addListener('keyboardDidHide', onKeyboardDidHide);
     return () => {
+      showSubscription.remove();
       hideSubscription.remove();
     };
   }, []);
@@ -252,8 +261,6 @@ function MessageDetails() {
     },
     [currentUserId, channelType]
   );
-
-  const lastIndex = messages.length > 0 ? messages.length - 1 : 0;
 
   const handleScroll = useCallback((event) => {
     const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
@@ -416,39 +423,33 @@ function MessageDetails() {
 
   return (
     <ScreenContainer>
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 5 : 5} // adjust offset as needed
-      >
-        {/* HEADER */}
-        <View style={styles.header}>
-          <Pressable onPress={() => navigation.goBack()} style={styles.arrowIcon}>
-            <Ionicons name="arrow-back" size={RFValue(24)} color="#000" />
-          </Pressable>
-          <Ionicons
-            name={channelType === "group" ? "people-circle" : "person-circle"}
-            size={RFValue(36)}
-            color="#888"
-            style={styles.profileIcon}
-          />
-          <Text style={styles.title}>{title}</Text>
-        </View>
+      {/* HEADER */}
+      <View style={styles.header}>
+        <Pressable onPress={() => navigation.goBack()} style={styles.arrowIcon}>
+          <Ionicons name="arrow-back" size={RFValue(24)} color="#000" />
+        </Pressable>
+        <Ionicons
+          name={channelType === "group" ? "people-circle" : "person-circle"}
+          size={RFValue(36)}
+          color="#888"
+          style={styles.profileIcon}
+        />
+        <Text style={styles.title}>{title}</Text>
+      </View>
 
-        {/* MESSAGES LIST */}
-        <View style={{ flex: 1 }}>
-            <FlatList
-              ref={flatListRef}
-              data={messagesWithSections}
+      {/* MESSAGES LIST */}
+      <View style={{ flex: 1 }}>
+        <FlatList
+          ref={flatListRef}
+          data={messagesWithSections}
           keyExtractor={(item) => item.id?.toString() || item.dateStr}
           renderItem={renderItem}
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={styles.messagesList}
-              onScroll={handleScroll}
-              scrollEventThrottle={16}
-              onViewableItemsChanged={handleViewableItemsChanged}
-              viewabilityConfig={{ itemVisiblePercentThreshold: 50 }}
-              // maintainVisibleContentPosition removed
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.messagesList}
+          onScroll={handleScroll}
+          scrollEventThrottle={16}
+          onViewableItemsChanged={handleViewableItemsChanged}
+          viewabilityConfig={{ itemVisiblePercentThreshold: 50 }}
           keyboardShouldPersistTaps="handled"
           initialNumToRender={20}
           maxToRenderPerBatch={20}
@@ -458,76 +459,75 @@ function MessageDetails() {
       </View>
 
       {/* FOOTER / INPUT */}
-      <View style={[styles.inputContainerWrapper, { paddingBottom: insets.bottom  }]}>
+      <View style={[styles.inputContainerWrapper, { paddingBottom: insets.bottom + keyboardHeight }]}>
         {/* Force re-render on keyboard dismiss */}
-        {(() => { console.log('Footer rendered', keyboardDismissedCount); return null; })()}
+        {(() => { console.log('Footer rendered', keyboardDismissedCount, keyboardHeight, isKeyboardVisible); return null; })()}
         <View style={{ display: 'none' }}>{keyboardDismissedCount}</View>
-          {selectedFile && (
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                marginBottom: 4,
-                marginLeft: 8,
-              }}
-            >
-              <Ionicons
-                name="document-attach-outline"
-                size={20}
-                color="#888"
-                style={{ marginRight: 6 }}
-              />
-              <Text style={{ color: "#333", fontSize: 14, flexShrink: 1 }}>
-                {selectedFile.name}
-              </Text>
-              <Pressable
-                onPress={() => setSelectedFile(null)}
-                style={{ marginLeft: 8 }}
-              >
-                <Ionicons name="close-circle" size={18} color="#888" />
-              </Pressable>
-            </View>
-          )}
-            <View style={styles.inputContainer}>
-            {/* Attach File Button (moved to left, black color) */}
+        {selectedFile && (
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              marginBottom: 4,
+              marginLeft: 8,
+            }}
+          >
+            <Ionicons
+              name="document-attach-outline"
+              size={20}
+              color="#888"
+              style={{ marginRight: 6 }}
+            />
+            <Text style={{ color: "#333", fontSize: 14, flexShrink: 1 }}>
+              {selectedFile.name}
+            </Text>
             <Pressable
-              onPress={handleFilePick}
-              style={{ padding: RFValue(8), marginRight: RFValue(4) }}
+              onPress={() => setSelectedFile(null)}
+              style={{ marginLeft: 8 }}
             >
-              <Ionicons name="attach-outline" size={RFValue(24)} color="#888" />
+              <Ionicons name="close-circle" size={18} color="#888" />
             </Pressable>
-              <TextInput
-              style={[styles.textInput, { backgroundColor: "#f8f8f8" }]}
-                value={newMessage}
-                onChangeText={setNewMessage}
-                placeholder="Type a message..."
-              placeholderTextColor="#222"
-                editable={!sending}
-                onSubmitEditing={sendMessage}
-                returnKeyType="send"
-              />
-              <Pressable
-                onPress={sendMessage}
-                style={styles.sendButton}
-              disabled={sending || (!newMessage.trim() && !selectedFile)}
-              >
-              {sending ? (
-                <ActivityIndicator size={24} color="#007AFF" />
-              ) : (
-                <Ionicons
-                  name="send"
-                  size={RFValue(24)}
-                  color={
-                    sending || (!newMessage.trim() && !selectedFile)
-                      ? "#888"
-                      : "#007AFF"
-                  }
-                />
-              )}
-              </Pressable>
           </View>
+        )}
+        <View style={styles.inputContainer}>
+          {/* Attach File Button (moved to left, black color) */}
+          <Pressable
+            onPress={handleFilePick}
+            style={{ padding: RFValue(8), marginRight: RFValue(4) }}
+          >
+            <Ionicons name="attach-outline" size={RFValue(24)} color="#888" />
+          </Pressable>
+          <TextInput
+            style={[styles.textInput, { backgroundColor: "#f8f8f8" }]}
+            value={newMessage}
+            onChangeText={setNewMessage}
+            placeholder="Type a message.."
+            placeholderTextColor="#222"
+            editable={!sending}
+            onSubmitEditing={sendMessage}
+            returnKeyType="send"
+          />
+          <Pressable
+            onPress={sendMessage}
+            style={styles.sendButton}
+            disabled={sending || (!newMessage.trim() && !selectedFile)}
+          >
+            {sending ? (
+              <ActivityIndicator size={24} color="#007AFF" />
+            ) : (
+              <Ionicons
+                name="send"
+                size={RFValue(24)}
+                color={
+                  sending || (!newMessage.trim() && !selectedFile)
+                    ? "#888"
+                    : "#007AFF"
+                }
+              />
+            )}
+          </Pressable>
         </View>
-      </KeyboardAvoidingView>
+      </View>
 
       {/* Image Modal */}
       <Modal
