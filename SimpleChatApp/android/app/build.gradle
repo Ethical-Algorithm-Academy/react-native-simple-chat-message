@@ -121,6 +121,7 @@ android {
                 serviceCredentialsFile="service-account.json"                
                 artifactType="APK"
                 groups="test"
+                releaseNotesFile="last_changes.txt"
             }
 
             // Caution! In production, you need to generate your own keystore file.
