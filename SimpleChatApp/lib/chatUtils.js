@@ -17,7 +17,7 @@ export function groupMessagesWithSections(messages) {
   const todayStr = now.toLocaleDateString([], { day: '2-digit', month: '2-digit', year: 'numeric' });
   const groups = {};
   messages.forEach(msg => {
-    const dateObj = new Date(msg.sent_at);
+    const dateObj = new Date(msg.sent_at+ 'Z');
     const dateStr = dateObj.toLocaleDateString([], { day: '2-digit', month: '2-digit', year: 'numeric' });
     if (!groups[dateStr]) groups[dateStr] = [];
     groups[dateStr].push(msg);

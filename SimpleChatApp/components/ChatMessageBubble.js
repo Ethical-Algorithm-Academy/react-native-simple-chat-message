@@ -9,9 +9,13 @@ const ChatMessageBubble = React.memo(function ChatMessageBubble({ item, isCurren
     senderName = item.users && item.users.name ? item.users.name.split(' ')[0] : '';
   }
   // Format time and date
-  const sentDate = new Date(item.sent_at);
-  let timeString = sentDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  let timeDisplay = timeString;
+  console.log('item.sent_at:', item.sent_at, 'type:', typeof item.sent_at);
+  const sentAt = item.sent_at ? new Date(item.sent_at + 'Z') : null;
+  console.log('sentAt Date object:', sentAt, 'isValid:', sentAt instanceof Date && !isNaN(sentAt));
+  const localTime = sentAt ? sentAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+  console.log('localTime:', localTime);
+  console.log('User time zone:', Intl.DateTimeFormat().resolvedOptions().timeZone);
+  let timeDisplay = localTime;
   // Get file preview URL if present
   let filePreview = null;
   let hasImage = false;

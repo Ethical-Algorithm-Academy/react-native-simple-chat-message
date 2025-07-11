@@ -162,7 +162,7 @@ function MainApp() {
     }
   }, [currentUserId, showError]);
 
-  useEffect(() => {
+  useFocusEffect(() => {
     const fetchUserRole = async () => {
       const { data } = await supabase.auth.getUser();
       const user = data?.user;
@@ -327,7 +327,7 @@ function MainApp() {
       type: item.type,
       text: previewText,
       content: previewText,
-      timestamp: lastMessage ? lastMessage.sent_at : "",
+      timestamp: lastMessage ? lastMessage.sent_at+ 'Z' : "",
       sender,
       seen: lastMessage?.seen ?? false,
       numbernewmessages,
