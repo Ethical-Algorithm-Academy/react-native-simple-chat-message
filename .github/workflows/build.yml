@@ -39,7 +39,7 @@ jobs:
         run: npm install
         working-directory: SimpleChatApp
       - name: Create .env file
-        run: bash ./.scripts/create_env.sh
+        run: bash ./../.scripts/create_env.sh
         working-directory: SimpleChatApp
       - name: Setup Keystore
         run: bash ./.scripts/setup_keystore_config.sh
