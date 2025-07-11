@@ -7,8 +7,6 @@ import { reinitSupabase } from "./lib/supabase";
 import * as Linking from "expo-linking";
 import { navigationRef } from './navigationRef';
 import { NAV_LOGIN_SCREEN } from './constants/navigation';
-import crashlytics from '@react-native-firebase/crashlytics';
-import messaging from '@react-native-firebase/messaging';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import {
@@ -39,14 +37,12 @@ import MessageDetailsScreen from './screens/MessageDetailsScreen'
 import { SnackbarProvider, useSnackbar } from "./contexts/SnackbarContext";
 
 import Snackbar from "./components/Snackbar";
-import LoadingScreen from "./components/LoadingScreen";
 import { View } from 'react-native';
 
 const Stack = createNativeStackNavigator();
 
 function AppContent() {
   const [session, setSession] = useState(null);
-  const [loading, setLoading] = useState(true); // for other loading, e.g. login
   const [startupLoading, setStartupLoading] = useState(true); // for app startup only
   const [sessionType, setSessionType] = useState(null);
   const [pendingMfa, setPendingMfa] = useState(null); // { ticket, factorId }
@@ -54,7 +50,7 @@ function AppContent() {
   const [requiresMfa, setRequiresMfa] = useState(false); // new flag
   const [checkingMfa, setCheckingMfa] = useState(false); // new state for MFA check
   const [mfaFlowStarted, setMfaFlowStarted] = useState(false); // new state for MFA flow
-  const { snackbar, hideSnackbar, showSuccess, showError, showInfo } = useSnackbar();
+  const { snackbar, hideSnackbar, showSuccess } = useSnackbar();
 
   // Add this function inside AppContent so it can access setSessionType
   const setSessionTypeWithLog = (type) => {
@@ -74,7 +70,7 @@ function AppContent() {
     // Only enforce MFA for email/password logins (not Google or magic link)
     if (user.app_metadata?.provider !== 'email' || sessionType === 'magic') {
       setRequiresMfa(false);
-      setMfaVerified(false);
+      setMfaVerified(false);S
       setCheckingMfa(false); // Done checking MFA
       return;
     }
