@@ -2,7 +2,6 @@ import React from "react";
 import { View, Text, StyleSheet, Pressable } from "react-native";
 import { RFValue } from "react-native-responsive-fontsize";
 import { Ionicons } from "@expo/vector-icons";
-import { resolveDiscoveryAsync } from "expo-auth-session";
 
 const defaultMessage = {
   seen: false,
@@ -102,6 +101,11 @@ const MessageBubble = ({ message = {}, filter = "", onpress }) => {
                   </View>
                 )
               )}
+              {msg.icon && (
+                <View style={styles.icon}>
+                  <Ionicons name={msg.icon} size={16} color="#888"/>
+                </View>
+              )}
               <Text
                 style={[
                   styles.textwithoutnumber,
@@ -167,7 +171,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     width: "100%",
-    
   },
   time: {
     color: "rgb(110, 110, 110)",
@@ -185,19 +188,19 @@ const styles = StyleSheet.create({
     color: "white",
     fontWeight: "bold",
     fontSize: RFValue(12),
+    textAlignVertical: 'center',
+    lineHeight: RFValue(16),
   },
   icon: {
     paddingRight: 5,
   },
   pressed: {
     opacity: 0.6,
-    
   },
   row: {
     flexDirection: "row",
     alignItems: "center",
     width: "100%",
-    
   },
   avatar: {
     marginRight: RFValue(8),
@@ -222,14 +225,6 @@ const styles = StyleSheet.create({
   unseenText: {
     fontWeight: 'bold',
     color: '#222',
-  },
-  bubble: {
-    borderWidth: 2,
-    borderColor: 'blue',
-  },
-  bubbleText: {
-    borderWidth: 2,
-    borderColor: 'green',
   },
 });
 

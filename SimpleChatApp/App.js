@@ -252,18 +252,7 @@ function AppContent() {
       subscription.unsubscribe();
       linkSubscription?.remove();
     };
-  }, [supabase]); // <-- Add supabase as a dependency
-
-  useEffect(() => {
-    crashlytics().log('App mounted.');
-      }, []);
-
-  useEffect(() => {
-    (async () => {
-      const { data: { session }, error } = await supabase.auth.getSession();
-    //  console.log('[App Start] Restored session:', session, error);
-    })();
-  }, []);
+  }, [supabase]);
 
   // Restore mfaVerified from storage on app start if session exists
   useEffect(() => {
@@ -320,17 +309,6 @@ function AppContent() {
       })();
     }
   }, [session, requiresMfa, mfaVerified, pendingMfa]);
-
-  useEffect(() => {
-    // Foreground handler
-    const unsubscribe = messaging().onMessage(async remoteMessage => {
-      console.log('[FCM] Foreground notification received:', remoteMessage);
-      const title = remoteMessage.notification?.title || 'Notification';
-      const body = remoteMessage.notification?.body || '';
-      showInfo(`${title}: ${body}`);
-    });
-    return unsubscribe;
-  }, [showInfo]);
 
   if (startupLoading) {
     return <View style={{ flex: 1, backgroundColor: 'rgb(255,255,255)' }} />;

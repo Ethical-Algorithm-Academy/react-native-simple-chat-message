@@ -5,6 +5,7 @@ import {
   useCallback,
   useMemo,
   React,
+  Platform,
 } from "react";
 import {
   View,
@@ -18,9 +19,11 @@ import {
   Modal,
   TouchableOpacity,
   ActivityIndicator,
+  Keyboard,
 } from "react-native";
 import { useRoute, useNavigation } from "@react-navigation/native";
 import { RFValue } from "react-native-responsive-fontsize";
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import * as DocumentPicker from "expo-document-picker";
 import { Ionicons } from "@expo/vector-icons";
@@ -57,6 +60,8 @@ function MessageDetails() {
   const [modalVideoUrl, setModalVideoUrl] = useState(null);
   const { showError, showWarning, showSuccess, showInfo } = useSnackbar();
   const [currentUserName, setCurrentUserName] = useState("");
+  const insets = useSafeAreaInsets();
+  const [keyboardDismissedCount, setKeyboardDismissedCount] = useState(0);
 
   const fetchMessages = useCallback(async () => {
     const { data, error } = await supabase
@@ -122,6 +127,7 @@ function MessageDetails() {
     const fetchMessagesRef = { current: fetchMessages };
     fetchMessagesRef.current = fetchMessages;
 
+    console.log('[Supabase] Activating realtime subscription for channel', channelId);
     const subscription = supabase
       .channel("messages_realtime_" + channelId)
       .on(
@@ -139,6 +145,7 @@ function MessageDetails() {
       .subscribe();
 
     return () => {
+      console.log('[Supabase] Deactivating realtime subscription for channel', channelId);
       supabase.removeChannel(subscription);
     };
   }, [channelId, fetchMessages]);
@@ -150,6 +157,17 @@ function MessageDetails() {
   useEffect(() => {
     currentUserIdRef.current = currentUserId;
   }, [currentUserId]);
+
+  useEffect(() => {
+    const onKeyboardDidHide = () => {
+      console.log('[Keyboard] Keyboard dismissed');
+      setKeyboardDismissedCount((count) => count + 1); // force re-render
+    };
+    const hideSubscription = Keyboard.addListener('keyboardDidHide', onKeyboardDidHide);
+    return () => {
+      hideSubscription.remove();
+    };
+  }, []);
 
   const handleViewableItemsChanged = useRef(({ viewableItems }) => {
     const userId = currentUserIdRef.current;
@@ -173,6 +191,7 @@ function MessageDetails() {
               msg.id === item.id ? { ...msg, seen: true } : msg
             )
           );
+          console.log(`[Seen] Message ${item.id} marked as seen by user ${userId}`);
         }
       }
     });
@@ -244,12 +263,6 @@ function MessageDetails() {
         contentSize.height - paddingToBottom
     );
   }, []);
-
-  const getItemLayout = (data, index) => ({
-    length: 80, // approximate row height, adjust as needed
-    offset: 80 * index,
-    index,
-  });
 
   const handleFilePick = async () => {
     try {
@@ -390,27 +403,39 @@ function MessageDetails() {
     flatListRef.current?.scrollToEnd({ animated: true });
   }, [messagesWithSections.length]);
 
+  // Add scroll-to-bottom on mount for inverted FlatList
+  useEffect(() => {
+    if (currentUserId && flatListRef.current && messagesWithSections.length > 0) {
+      flatListRef.current.scrollToOffset({ offset: 0, animated: false });
+    }
+  }, [currentUserId, messagesWithSections.length]);
+
   if (!currentUserId) {
     return <LoadingScreen />;
   }
 
   return (
     <ScreenContainer>
-      {/* HEADER */}
-      <View style={styles.header}>
-        <Pressable onPress={() => navigation.goBack()} style={styles.arrowIcon}>
-          <Ionicons name="arrow-back" size={RFValue(24)} color="#000" />
-        </Pressable>
-        <Ionicons
-          name={channelType === "group" ? "people-circle" : "person-circle"}
-          size={RFValue(36)}
-          color="#888"
-          style={styles.profileIcon}
-        />
-        <Text style={styles.title}>{title}</Text>
-      </View>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 5 : 5} // adjust offset as needed
+      >
+        {/* HEADER */}
+        <View style={styles.header}>
+          <Pressable onPress={() => navigation.goBack()} style={styles.arrowIcon}>
+            <Ionicons name="arrow-back" size={RFValue(24)} color="#000" />
+          </Pressable>
+          <Ionicons
+            name={channelType === "group" ? "people-circle" : "person-circle"}
+            size={RFValue(36)}
+            color="#888"
+            style={styles.profileIcon}
+          />
+          <Text style={styles.title}>{title}</Text>
+        </View>
 
-      {/* MESSAGES LIST */}
+        {/* MESSAGES LIST */}
         <View style={{ flex: 1 }}>
             <FlatList
               ref={flatListRef}
@@ -419,16 +444,11 @@ function MessageDetails() {
           renderItem={renderItem}
               showsVerticalScrollIndicator={false}
               contentContainerStyle={styles.messagesList}
-              initialScrollIndex={lastIndex}
-              getItemLayout={getItemLayout}
               onScroll={handleScroll}
               scrollEventThrottle={16}
               onViewableItemsChanged={handleViewableItemsChanged}
               viewabilityConfig={{ itemVisiblePercentThreshold: 50 }}
-              maintainVisibleContentPosition={{
-                minIndexForVisible: 0,
-                autoscrollToTopThreshold: 10,
-              }}
+              // maintainVisibleContentPosition removed
           keyboardShouldPersistTaps="handled"
           initialNumToRender={20}
           maxToRenderPerBatch={20}
@@ -438,8 +458,10 @@ function MessageDetails() {
       </View>
 
       {/* FOOTER / INPUT */}
-      <KeyboardAvoidingView>
-          <View style={styles.inputContainerWrapper}>
+      <View style={[styles.inputContainerWrapper, { paddingBottom: insets.bottom  }]}>
+        {/* Force re-render on keyboard dismiss */}
+        {(() => { console.log('Footer rendered', keyboardDismissedCount); return null; })()}
+        <View style={{ display: 'none' }}>{keyboardDismissedCount}</View>
           {selectedFile && (
             <View
               style={{
@@ -606,7 +628,6 @@ const styles = StyleSheet.create({
   },
   messagesList: {
     paddingVertical: RFValue(8),
-    justifyContent: "flex-end",
   },
   messageBubble: {
     borderRadius: RFValue(12),
@@ -637,7 +658,7 @@ const styles = StyleSheet.create({
   },
   inputContainerWrapper: {
     backgroundColor: "#fff",
-    paddingBottom: RFValue(8),
+    // paddingBottom: RFValue(8), // Removed hardcoded padding
   },
   inputContainer: {
     flexDirection: "row",
@@ -645,7 +666,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderColor: "#eee",
     paddingHorizontal: RFValue(8),
-    paddingVertical: RFValue(4),
+    paddingTop: RFValue(4),
     backgroundColor: "#fff",
   },
   textInput: {
