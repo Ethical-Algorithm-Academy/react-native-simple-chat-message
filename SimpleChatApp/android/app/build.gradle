@@ -120,8 +120,8 @@ android {
             firebaseAppDistribution {
                 serviceCredentialsFile="service-account.json"                
                 artifactType="APK"
-                groups="test"
-                releaseNotesFile="CHANGELOG.md"
+                groups="luis"
+                releaseNotes="SimpleChat App Release"
             }
 
             // Caution! In production, you need to generate your own keystore file.

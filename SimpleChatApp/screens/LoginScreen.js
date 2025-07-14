@@ -5,6 +5,7 @@ import { useNavigation } from "@react-navigation/native";
 import { supabase } from "../lib/supabase";
 import { signInWithGoogle } from '../lib/googleAuth';
 import { useSnackbar } from "../contexts/SnackbarContext";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import {
   NAV_FORGOT_PASSWORD_SCREEN,
@@ -41,11 +42,12 @@ function LoginScreen({ onPendingMfa, onMfaFlowStarted, disableSignIn }) {
 
     try {
       setLoading(true);
+      await AsyncStorage.setItem('last_login_method', 'email');
       const { data, error } = await supabase.auth.signInWithPassword({
         email: email,
         password: password,
       });
-      console.log('LOGIN RESPONSE:', data, error);
+      
       if (error) throw error;
 
       // Handle MFA challenge
@@ -73,6 +75,7 @@ function LoginScreen({ onPendingMfa, onMfaFlowStarted, disableSignIn }) {
   const handleGoogleSignIn = async () => {
     try {
       setLoading(true);
+      await AsyncStorage.setItem('last_login_method', 'google');
       const { data, error } = await signInWithGoogle();
       
       if (error) throw error;
@@ -98,7 +101,7 @@ function LoginScreen({ onPendingMfa, onMfaFlowStarted, disableSignIn }) {
           <IconHeader image={require("../assets/images/luis.png")} />
           
           <ScreenTitle 
-            title="Welcome Back"
+            title="Welcome Backi"
             subtitle="Enter your credentials to access your account"
           />
           
