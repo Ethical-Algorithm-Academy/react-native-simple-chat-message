@@ -120,7 +120,7 @@ android {
             firebaseAppDistribution {
                 serviceCredentialsFile="service-account.json"                
                 artifactType="APK"
-                groups="luis"
+                groups="test"
                 releaseNotes="SimpleChat App Release"
             }
 
