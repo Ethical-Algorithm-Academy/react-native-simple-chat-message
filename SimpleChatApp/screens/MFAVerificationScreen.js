@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import { supabase } from "../lib/supabase";
 import { useSnackbar } from "../contexts/SnackbarContext";
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useNavigation } from '@react-navigation/native';
 
 import ScreenContainer from "../components/ScreenContainer";
 import IconHeader from "../components/IconHeader";
@@ -9,10 +11,18 @@ import FormLabel from "../components/FormLabel";
 import PrimaryButton from "../components/PrimaryButton";
 import TextInput from "../components/TextInput";
 
-export default function MFAVerificationScreen({ challengeId, factorId, onVerified }) {
+import { NAV_MAIN_APP } from "../constants/navigation";
+
+export default function MFAVerificationScreen({ challengeId, factorId }) {
+  console.log("[MFA] MFAVerificationScreen rendered with props:", {
+    challengeId,
+    factorId,
+  });
+  
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
   const { showSnackbar } = useSnackbar();
+  const navigation = useNavigation();
 
   const handleVerify = async () => {
     setLoading(true);
@@ -24,20 +34,21 @@ export default function MFAVerificationScreen({ challengeId, factorId, onVerifie
         code,
       });
       if (error) {
+        console.log("[MFA] Verification error:", error);
         showSnackbar("Invalid code. Please try again.", "error");
       } else {
+        console.log("[MFA] Verification successful:");
         showSnackbar("MFA verified!", "success");
-        if (onVerified) {
-          if (data?.session) {
-            onVerified(data.session);
-          } else {
-            const { data: sessionData } = await supabase.auth.getSession();
-            onVerified(sessionData.session);
-          }
-        }
+        console.log('[MFA] Setting mfa_verified in AsyncStorage...');
+        await AsyncStorage.setItem("mfa_verified", "true");
+        console.log('[MFA] mfa_verified set. Clearing pendingMfa...');
+
+        navigation.reset({ index: 0, routes: [{ name: NAV_MAIN_APP }] });
+        console.log('[MFA] navigation.reset to main app called.');
       }
     } catch (err) {
       showSnackbar("An error occurred during verification.", "error");
+      console.log('[MFA] Exception during verification:', err);
     } finally {
       setLoading(false);
     }

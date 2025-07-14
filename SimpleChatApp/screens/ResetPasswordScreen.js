@@ -36,6 +36,9 @@ function ResetPasswordScreen() {
         showError('Invalid or expired reset link. Please request a new password reset.');
         // Don't navigate manually - let auth state handle it
       }
+      // Log the session object for debugging
+      const { data: { session } } = await supabase.auth.getSession();
+      console.log('[ResetPasswordScreen] session:', session);
     };
 
     getUser();
@@ -69,9 +72,7 @@ function ResetPasswordScreen() {
       showSuccess('Password updated successfully! You can now sign in with your new password.');
       
       // Simply sign out - this will trigger auth state change and show login screen
-      await supabase.auth.signOut();
-      navigation.navigate(NAV_LOGIN_SCREEN);
-      
+      await supabase.auth.signOut();      
     } catch (error) {
       showError(error.message);
     } finally {
@@ -83,7 +84,6 @@ function ResetPasswordScreen() {
     try {
       // Simply sign out - this will trigger auth state change and show login screen
       await supabase.auth.signOut();
-      navigation.navigate(NAV_LOGIN_SCREEN);
     } catch (error) {
       console.error('Error signing out:', error);
     }

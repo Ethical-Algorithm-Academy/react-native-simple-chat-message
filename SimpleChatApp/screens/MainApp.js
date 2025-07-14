@@ -9,7 +9,7 @@ import Icon from "react-native-vector-icons/MaterialIcons";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import * as Notifications from "expo-notifications";
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import messaging from '@react-native-firebase/messaging';
+import { getMessaging, requestPermission, getToken, onTokenRefresh } from '@react-native-firebase/messaging';
 
 import {
   NAV_CONFIGURATIONS_SCREEN,
@@ -93,7 +93,8 @@ async function waitForSocketOpen(socket, timeout = 5000) {
 
 // Request permission and get token
 const getFcmTokenWithFirebase = async () => {
-  const authStatus = await messaging().requestPermission();
+  const messaging = getMessaging();
+  const authStatus = await requestPermission(messaging);
   const enabled =
     authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
     authStatus === messaging.AuthorizationStatus.PROVISIONAL;
@@ -102,7 +103,7 @@ const getFcmTokenWithFirebase = async () => {
     return null;
   }
 
-  const token = await messaging().getToken();
+  const token = await getToken(messaging);
   return token;
 };
 
@@ -162,32 +163,34 @@ function MainApp() {
     }
   }, [currentUserId, showError]);
 
-  useFocusEffect(() => {
-    const fetchUserRole = async () => {
-      const { data } = await supabase.auth.getUser();
-      const user = data?.user;
-      if (user) {
-        setCurrentUserId(user.id);
+  useFocusEffect(
+    React.useCallback(() => {
+      const fetchUserRole = async () => {
+        const { data } = await supabase.auth.getUser();
+        const user = data?.user;
+        if (user) {
+          setCurrentUserId(user.id);
 
-        const { data: userData, error } = await supabase
-          .from("users")
-          .select("role")
-          .eq("id", user.id)
-          .single();
+          const { data: userData, error } = await supabase
+            .from("users")
+            .select("role")
+            .eq("id", user.id)
+            .single();
 
-        if (userData?.role) {
-          setUserRole(userData.role);
+          if (userData?.role) {
+            setUserRole(userData.role);
+          }
+          if (error) {
+            showError(error.message);
+          }
         }
-        if (error) {
-          showError(error.message);
-        }
-      }
-    };
-    fetchUserRole();
-  }, []);
+      };
+      fetchUserRole();
+    }, [])
+  );
 
   useFocusEffect(
-    useCallback(() => {
+    React.useCallback(() => {
       let isActive = true;
       const setup = async () => {
         if (!currentUserId) return;
@@ -264,7 +267,7 @@ function MainApp() {
 
     // Get the last message sent
     const lastMessage = item.messages?.[0] ?? null;
-    console.log("[DEBUG] renderItem lastMessage:", lastMessage);
+    //console.log("[DEBUG] renderItem lastMessage:", lastMessage);
     let numbernewmessages = 0;
 
     // Calculate number of unseen messages for the current user, limit to 100 (99+)
@@ -378,7 +381,8 @@ function MainApp() {
   }, [currentUserId, handleLoginFcmToken]);
 
   useEffect(() => {
-    const unsubscribe = messaging().onTokenRefresh(async (newToken) => {
+    const messaging = getMessaging();
+    const unsubscribe = onTokenRefresh(messaging, async (newToken) => {
       if (currentUserId) {
         await storeFcmTokenForUser(currentUserId, newToken);
         await addFcmTokenToSupabase(currentUserId, newToken);
