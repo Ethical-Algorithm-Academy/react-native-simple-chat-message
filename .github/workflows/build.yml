@@ -1,0 +1,84 @@
+name: Build React Native App for Android
+
+on:
+  push:
+    branches:
+      - feature-auth-system
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+
+env:
+  keystoreFile: ${{ secrets.ANDROID_KEYSTORE }}
+  password: ${{ secrets.ANDROID_PASSWORD }}
+  alias: ${{ vars.ANDROID_ALIAS }}
+  appVersion: ${{ vars.APP_VERSION }}
+  appBuild: ${{ github.run_number }}
+  SERVICE_ACCOUNT: ${{ secrets.SERVICE_ACCOUNT }}
+  EXPO_PUBLIC_SUPABASE_URL: ${{ vars.EXPO_PUBLIC_SUPABASE_URL }}
+  EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+
+jobs:
+  android-build:
+    name: Android Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: "20"
+      - name: Set up JDK 17
+        uses: actions/setup-java@v3
+        with:
+          distribution: "temurin"
+          java-version: "17"
+      - name: Install dependencies
+        run: npm install
+        working-directory: SimpleChatApp
+      - name: Create .env file
+        run: bash ./../.scripts/create_env.sh
+        working-directory: SimpleChatApp
+      - name: Setup Keystore
+        run: bash ./.scripts/setup_keystore_config.sh
+      - name: Decode service account
+        run: bash ./.scripts/decode_service_account.sh
+      - name: Setup App Version and Build numbers
+        run: bash ./.scripts/setup_build_version.sh
+      - name: Create Tag and Add to GitHub
+        run: bash ./.scripts/setup_add_tag.sh
+      - name: Generate CHANGELOG
+        id: changelog
+        uses: requarks/changelog-action@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag: "v${{ env.appVersion }}.${{ env.appBuild }}"
+          excludeTypes: chore,docs
+      - name: Create Release
+        uses: ncipollo/release-action@v1.14.0
+        with:
+          allowUpdates: true
+          draft: false
+          makeLatest: true
+          name: "v${{ env.appVersion }}.${{ env.appBuild }}"
+          tag: "v${{ env.appVersion }}.${{ env.appBuild }}"
+          body: ${{ steps.changelog.outputs.changes }}
+          token: ${{ secrets.GITHUB_TOKEN}}
+      - name: Write a ChangeLog
+        run: |
+          echo "${{ steps.changelog.outputs.changes }}" > changelog_content.txt
+          bash ./../../.scripts/update_changelog.sh "$(cat changelog_content.txt)"
+        working-directory: SimpleChatApp/android
+      - name: Build Android Release
+        run: ./gradlew :app:assembleRelease
+        working-directory: SimpleChatApp/android
+      - name: Publish Demo App in app distribution
+        run: ./gradlew appDistributionUploadRelease
+        working-directory: SimpleChatApp/android
+      - name: Remove credentials file
+        if: success() || failure()
+        run: |
+          rm SimpleChatApp/android/service-account.json
+      
