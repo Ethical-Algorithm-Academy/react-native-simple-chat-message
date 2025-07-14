@@ -121,7 +121,7 @@ android {
                 serviceCredentialsFile="service-account.json"                
                 artifactType="APK"
                 groups="test"
-                releaseNotes="SimpleChat App Release"
+                releaseNotesFile="CHANGELOG.md"
             }
 
             // Caution! In production, you need to generate your own keystore file.
