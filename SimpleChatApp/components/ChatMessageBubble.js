@@ -2,6 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, Image, Pressable, Linking, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { createThumbnail } from 'react-native-create-thumbnail';
+import FilePreviewImage from "./FilePreviewImage";
+import FilePreviewVideo from "./FilePreviewVideo";
+import { formatFileSize } from '../utils/formatFileSize';
 
 const ChatMessageBubble = React.memo(function ChatMessageBubble({ item, isCurrentUser, channelType, onImagePress, onVideoPress, styles }) {
   let senderName = '';
@@ -49,53 +52,30 @@ const ChatMessageBubble = React.memo(function ChatMessageBubble({ item, isCurren
     if (item.file_type.startsWith('image/')) {
       hasImage = true;
       filePreview = (
-        <TouchableOpacity
-          activeOpacity={0.8}
-          onPress={() => onImagePress(publicUrl)}
-          style={{ marginTop: 4, marginBottom: item.content ? 12 : 0, alignSelf: isCurrentUser ? 'flex-end' : 'flex-start', marginHorizontal: 0 }}
-        >
-          <View style={{ borderRadius: 12, overflow: 'hidden', backgroundColor: '#eee', marginHorizontal: 2 }}>
-            <Image
-              source={{ uri: publicUrl }}
-              style={{ width: 190, height: 250, resizeMode: 'cover', borderRadius: 12 }}
-            />
-          </View>
-        </TouchableOpacity>
+        <FilePreviewImage
+        onPress={() => onImagePress(publicUrl)}
+        item={item}
+        isCurrentUser={isCurrentUser}
+        publicUrl={publicUrl}
+        />
       );
     } else if (item.file_type.startsWith('video/')) {
       hasVideo = true;
       filePreview = (
-        <TouchableOpacity
-          activeOpacity={0.8}
+        <FilePreviewVideo
           onPress={() => onVideoPress(publicUrl)}
-          style={{ marginTop: 4, marginBottom: item.content ? 12 : 0, alignSelf: isCurrentUser ? 'flex-end' : 'flex-start', marginHorizontal: 0 }}
-        >
-          <View style={{ borderRadius: 12, overflow: 'hidden', backgroundColor: '#222', marginHorizontal: 2, width: 190, height: 250, justifyContent: 'center', alignItems: 'center' }}>
-            {thumbnailLoading ? (
-              <ActivityIndicator size={32} color="#fff" />
-            ) : videoThumbnail ? (
-              <Image
-                source={{ uri: videoThumbnail }}
-                style={{ width: 190, height: 250, resizeMode: 'cover', borderRadius: 12, position: 'absolute', top: 0, left: 0 }}
-              />
-            ) : null}
-            <Ionicons name="play-circle" size={64} color="#fff" style={{ opacity: 0.85, zIndex: 2 }} />
-            <Text style={{ color: '#fff', fontSize: 14, marginTop: 8, zIndex: 2 }}>Tap to play video</Text>
-          </View>
-        </TouchableOpacity>
+          item={item}
+          isCurrentUser={isCurrentUser}
+          publicUrl={publicUrl}
+          videoThumbnail={videoThumbnail}
+          thumbnailLoading={thumbnailLoading}
+        />
       );
     } else {
       // Format file size
       let sizeStr = '';
       if (item.file_size !== undefined && item.file_size !== null) {
-        const size = item.file_size;
-        if (size < 1024) {
-          sizeStr = `${size} B`;
-        } else if (size < 1024 * 1024) {
-          sizeStr = `${(size / 1024).toFixed(0)} KB`;
-        } else {
-          sizeStr = `${(size / (1024 * 1024)).toFixed(1)} MB`;
-        }
+        sizeStr = formatFileSize(item.file_size);
       }
       // Get file extension from file_name if possible
       let ext = '';

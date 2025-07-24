@@ -34,7 +34,7 @@ import { supabase } from "../lib/supabase";
 import { groupMessagesWithSections } from "../lib/chatUtils";
 import { uploadFileToSupabase, MAX_FILE_SIZE } from "../lib/fileUpload";
 import { useSnackbar } from '../contexts/SnackbarContext';
-import sendNotificationToUser from '../lib/notification';
+import sendNotificationToUser from '../lib/notificationsRepository';
 
 
 function MessageDetails() {

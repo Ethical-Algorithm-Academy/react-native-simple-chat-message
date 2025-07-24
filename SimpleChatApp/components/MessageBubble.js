@@ -2,6 +2,8 @@ import React from "react";
 import { View, Text, StyleSheet, Pressable } from "react-native";
 import { RFValue } from "react-native-responsive-fontsize";
 import { Ionicons } from "@expo/vector-icons";
+import { formatDateShort } from '../utils/formatDateShort';
+
 
 const defaultMessage = {
   seen: false,
@@ -51,9 +53,7 @@ const MessageBubble = ({ message = {}, filter = "", onpress }) => {
         hour12: true,
       });
     } else {
-      return `${date.getDate().toString().padStart(2, "0")}/${(date.getMonth() + 1)
-        .toString()
-        .padStart(2, "0")}`;
+      return formatDateShort(date);
     }
   }
 

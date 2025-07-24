@@ -25,6 +25,8 @@ import AddMensage from "../components/AddMessage";
 import SearchBar from "../components/SearchBar";
 import { supabase } from "../lib/supabase";
 import { useSnackbar } from "../contexts/SnackbarContext";
+import { getRandomChannelName } from '../utils/channelUtils';
+
 
 // Key for storing FCM tokens by user in AsyncStorage
 const FCM_TOKEN_KEY = 'fcm_tokens_by_user';
@@ -453,14 +455,7 @@ function MainApp() {
                 showError('No manager found.');
                 return;
               }
-              // Create a random channel name
-              const getRandomChannelName = () => {
-                const adjectives = ["Cool", "Fun", "Secret", "Chill", "Epic", "Quick", "Smart", "Happy"];
-                const nouns = ["Group", "Squad", "Team", "Chat", "Room", "Circle", "Crew", "Club"];
-                const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
-                const noun = nouns[Math.floor(Math.random() * nouns.length)];
-                return `${adj} ${noun}`;
-              };
+
               const channelName = getRandomChannelName();
               // Create the channel
               const { data: channel, error: channelError } = await supabase
