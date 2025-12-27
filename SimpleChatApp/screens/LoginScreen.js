@@ -101,7 +101,7 @@ function LoginScreen({ onPendingMfa, onMfaFlowStarted, disableSignIn }) {
           <IconHeader image={require("../assets/images/luis.png")} />
           
           <ScreenTitle 
-            title="Welcome Backi"
+            title="Welcome Back"
             subtitle="Enter your credentials to access your account"
           />
           
