@@ -1,0 +1,58 @@
+// Top-level build file where you can add configuration options common to all sub-projects/modules.
+buildscript {
+  def keystorePropertiesFile = rootProject.file('keystore/keystore.properties')
+  def keystoreProperties = new Properties()
+  keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+
+  ext {
+    releaseStoreFile = keystoreProperties['storeFile']
+    releaseStorePassword = keystoreProperties['storePassword']
+    releaseKeyAlias = keystoreProperties['keyAlias']
+    releaseKeyPassword = keystoreProperties['keyPassword']
+    appNameVersion = project.hasProperty('appVersion') ? project.getProperty('appVersion') : '1.0.0'
+    appBuildVersion = project.hasProperty('appBuild') ? project.getProperty('appBuild').toInteger() : 1
+  }
+  repositories {
+    google()
+    mavenCentral()
+  }
+  dependencies {
+    classpath('com.android.tools.build:gradle')
+    classpath('com.facebook.react:react-native-gradle-plugin')
+    classpath('org.jetbrains.kotlin:kotlin-gradle-plugin')
+    classpath 'com.google.firebase:firebase-crashlytics-gradle:2.9.9'
+    classpath 'com.google.firebase:firebase-appdistribution-gradle:5.1.1'
+  }
+}
+
+plugins {
+  // ...
+
+  // Add the dependency for the Google services Gradle plugin
+  id 'com.google.gms.google-services' version '4.4.3' apply false
+
+}
+
+def reactNativeAndroidDir = new File(
+  providers.exec {
+    workingDir(rootDir)
+    commandLine("node", "--print", "require.resolve('react-native/package.json')")
+  }.standardOutput.asText.get().trim(),
+  "../android"
+)
+
+allprojects {
+  repositories {
+    maven {
+      // All of React Native (JS, Obj-C sources, Android binaries) is installed from npm
+      url(reactNativeAndroidDir)
+    }
+
+    google()
+    mavenCentral()
+    maven { url 'https://www.jitpack.io' }
+  }
+}
+
+apply plugin: "expo-root-project"
+apply plugin: "com.facebook.react.rootproject"
