@@ -50,7 +50,7 @@ jobs:
           tag: "v${{ env.appVersion }}.${{ env.appBuild }}"
           excludeTypes: chore,docs
       - name: Create Release
-        uses: ncipollo/release-action@v1.14.0
+        uses: ncipollo/release-action@v1.20.0
         with:
           allowUpdates: true
           draft: false
