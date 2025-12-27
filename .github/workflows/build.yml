@@ -3,7 +3,7 @@ name: Build React Native App for Android
 on:
   push:
     branches:
-      - feature-auth-system
+      - main
   workflow_dispatch:
 
 permissions:
